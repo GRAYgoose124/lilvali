@@ -8,21 +8,25 @@ The following commands are assuming you've just cloned the repo and haven't `cd`
 ```bash
 # For development:
 pip install -e lilvali
+
 # otherwise:
 pip install lilvali
 ```
 
-## Testing
+### Testing
 ```bash
-cd lilvali
-python -m unittest discover -s tests
+LILVALI_DEBUG="False" python -m unittest discover -s lilvali/tests 
 ```
 
-## Usage
+### Usage
+After installing:
 ```bash
-# After installing. (Does nothing right now.)
+# (Does nothing right now.)
 lilvali
 
 # You may also want to try the demo:
 python lilvali/demo
 ```
+
+## TODO
+- recursive validation

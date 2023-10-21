@@ -65,6 +65,9 @@ class BindChecker:
     def register_handler(self, type_check, handler):
         self.handlers[type_check] = handler
 
+    def new_bindings(self, generics):
+        self.Gbinds = {G: GenericBinding() for G in generics}
+
     def check(self, ann, arg):
         if isinstance(ann, TypeVar):
             if len(ann.__constraints__) and type(arg) not in ann.__constraints__:
@@ -88,7 +91,8 @@ class BindChecker:
         self.Gbinds[ann].bind_new_arg(arg)
 
     def handle_sequence(self, ann, arg):
-        # Generic with constraints
+        """Handle generic sequences"""
+        # Generic tuple
         if isinstance(arg, tuple) and len(ann) == len(arg):
             for a, b in zip(ann, arg):
                 self.check(a, b)
@@ -111,15 +115,21 @@ class Validator:
         self.bind_checker = BindChecker()
 
     def __call__(self, *args, **kwargs):
-        self.bind_checker.Gbinds = {G: GenericBinding() for G in self.generics}
+        # Refresh the BindChecker with new bindings on func call.
+        self.bind_checker.new_bindings(self.generics)
+
+        # check all args and kwargs together.
         for name, arg in chain(zip(self.argspec.args, args), kwargs.items()):
             annotation = self.argspec.annotations.get(name)
             if annotation is not None:
                 self.bind_checker.check(annotation, arg)
 
+        # after ensuring all values can bind
         if all(val.can_bind for val in self.bind_checker.Gbinds.values()):
+            # call the function being validated
             result = self.func(*args, **kwargs)
 
+            # if there is a return annotation
             if "return" in self.argspec.annotations:
                 ret_ann = self.argspec.annotations["return"]
                 log.debug(
@@ -128,9 +138,12 @@ class Validator:
                     type(result),
                     ret_ann,
                 )
+                # and the return annotation is not simply the type
                 if ret_ann != type(result):
+                    # recursively check the return annotation
                     self.bind_checker.check(ret_ann, result)
 
+            # return the results if nothing has gone wrong
             return result
         else:
             raise ValidationError(f"{self.bind_checker.Gbinds=}")
