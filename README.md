@@ -22,4 +22,7 @@ python -m unittest discover -s tests
 ```bash
 # After installing. (Does nothing right now.)
 lilvali
+
+# You may also want to try the demo:
+python lilvali/demo
 ```
