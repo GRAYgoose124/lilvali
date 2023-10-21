@@ -2,6 +2,7 @@ import unittest
 
 from lilvali.validate import validate, ValidationError
 
+
 @validate
 def mymod[T](a: T, b: T):
     return a % b

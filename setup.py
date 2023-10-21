@@ -17,4 +17,9 @@ setup(
         "Intended Audience :: Developers",
         "Topic :: Utilities",
     ],
+    entry_points={
+        "console_scripts": [
+            "lilvali = lilvali.__main__:main",
+        ]
+    },
 )
