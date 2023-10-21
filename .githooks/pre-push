@@ -2,6 +2,6 @@
 
 # Run the test suite
 if ! python -m unittest discover -s tests; then
-  echo "Tests failed. Push aborted, ensure `lilvali` can be found in your PATH."
+  echo "Tests failed. Push aborted, ensure \`lilvali\` can be found in your PATH."
   exit 1
 fi

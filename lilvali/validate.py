@@ -29,14 +29,35 @@ class GenericBinding:
 
     @property
     def can_bind(self):
-        return self.ty is not None or len(self.instances) == 0
+        return not self.is_unbound or self.none_bound
+
+    @property
+    def is_unbound(self):
+        return self.ty is None
+
+    @property
+    def none_bound(self):
+        return len(self.instances) == 0
+
+    def can_new_arg_bind(self, arg):
+        return self.is_unbound or self.ty == type(arg)
+
+    def bind_new_arg(self, arg):
+        if self.is_unbound:
+            self.ty = type(arg)
+        elif self.ty != type(arg):
+            raise BindingError(
+                f"Generic bound to different types: {self.ty}, but arg is {type(arg)}"
+            )
+        self.instances.append(arg)
 
 
 class BindChecker:
     def __init__(self):
         self.handlers = {
             TypeVar: self.handle_typevar,
-            (list, tuple): self.handle_sequence,
+            list: self.handle_sequence,
+            tuple: self.handle_sequence,
             Callable: self.handle_callable,
         }
         self.Gbinds = None
@@ -57,29 +78,21 @@ class BindChecker:
         log.debug(f"{ann=}:{ann_ty} {arg=} {self.Gbinds=}")
 
         for type_check, handler in self.handlers.items():
-            if isinstance(type_check, Sequence):
-                if any(isinstance(ann, t) for t in type_check):
-                    handler(ann, arg)
-                    return
-            elif isinstance(ann, type_check):
+            if isinstance(ann, type_check):
                 handler(ann, arg)
                 return
 
         raise ValidationError(f"Type {type(ann)} is not handled.")
 
     def handle_typevar(self, ann, arg):
-        if self.Gbinds[ann].ty is None:
-            self.Gbinds[ann].ty = type(arg)
-        elif self.Gbinds[ann].ty != type(arg):
-            raise ValidationError(
-                f"Generic {ann} bound to different types: {self.Gbinds[ann].ty}, but arg is {type(arg)}"
-            )
-        self.Gbinds[ann].instances.append(arg)
+        self.Gbinds[ann].bind_new_arg(arg)
 
     def handle_sequence(self, ann, arg):
+        # Generic with constraints
         if isinstance(arg, tuple) and len(ann) == len(arg):
             for a, b in zip(ann, arg):
                 self.check(a, b)
+        # Generic list
         elif isinstance(arg, list):
             for a in arg:
                 self.check(ann[0], a)
