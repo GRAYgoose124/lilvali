@@ -32,89 +32,100 @@ class GenericBinding:
         return self.ty is not None or len(self.instances) == 0
 
 
-def check_binding(ann, arg, Gbinds):
-    if isinstance(ann, TypeVar):
-        if len(ann.__constraints__) and type(arg) not in ann.__constraints__:
+class BindChecker:
+    def __init__(self):
+        self.handlers = {
+            TypeVar: self.handle_typevar,
+            (list, tuple): self.handle_sequence,
+            Callable: self.handle_callable,
+        }
+        self.Gbinds = None
+
+    def register_handler(self, type_check, handler):
+        self.handlers[type_check] = handler
+
+    def check(self, ann, arg):
+        if isinstance(ann, TypeVar):
+            if len(ann.__constraints__) and type(arg) not in ann.__constraints__:
+                raise ValidationError(
+                    f"{arg=} is not valid for {ann=} with constraints {ann.__constraints__}"
+                )
+            ann_ty = f"{ann}:ann.__constraints__"
+        else:
+            ann_ty = type(ann).__name__
+
+        log.debug(f"{ann=}:{ann_ty} {arg=} {self.Gbinds=}")
+
+        for type_check, handler in self.handlers.items():
+            if isinstance(type_check, Sequence):
+                if any(isinstance(ann, t) for t in type_check):
+                    handler(ann, arg)
+                    return
+            elif isinstance(ann, type_check):
+                handler(ann, arg)
+                return
+
+        raise ValidationError(f"Type {type(ann)} is not handled.")
+
+    def handle_typevar(self, ann, arg):
+        if self.Gbinds[ann].ty is None:
+            self.Gbinds[ann].ty = type(arg)
+        elif self.Gbinds[ann].ty != type(arg):
             raise ValidationError(
-                f"{arg=} is not valid for {ann=} with constraints {ann.__constraints__}"
+                f"Generic {ann} bound to different types: {self.Gbinds[ann].ty}, but arg is {type(arg)}"
             )
-        ann_ty = f"{ann}:ann.__constraints__"
-    else:
-        ann_ty = type(ann).__name__
+        self.Gbinds[ann].instances.append(arg)
 
-    log.debug(f"{ann=}:{ann_ty} {arg=} {Gbinds=}")
-
-    def handle_typevar():
-        if Gbinds[ann].ty is None:
-            Gbinds[ann].ty = type(arg)
-        elif Gbinds[ann].ty != type(arg):
-            raise ValidationError(
-                f"Generic {ann} bound to different types: {Gbinds[ann].ty}, but arg is {type(arg)}"
-            )
-        Gbinds[ann].instances.append(arg)
-
-    def handle_sequence():
+    def handle_sequence(self, ann, arg):
         if isinstance(arg, tuple) and len(ann) == len(arg):
             for a, b in zip(ann, arg):
-                check_binding(a, b, Gbinds)
+                self.check(a, b)
         elif isinstance(arg, list):
             for a in arg:
-                check_binding(ann[0], a, Gbinds)
+                self.check(ann[0], a)
         else:
             raise ValidationError(f"{arg=} is not valid for {ann=}")
 
-    def handle_callable():
+    def handle_callable(self, ann, arg):
         if not ann(arg):
             raise ValidationError(f"{arg=} is not valid for {ann.__name__}")
 
-    type_handlers = {
-        TypeVar: handle_typevar,
-        (list, tuple): handle_sequence,
-        Callable: handle_callable,
-    }
 
-    for type_check, handler in type_handlers.items():
-        if isinstance(type_check, Sequence):
-            if any(isinstance(ann, t) for t in type_check):
-                handler()
-                return
-        elif isinstance(ann, type_check):
-            handler()
-            return
+class Validator:
+    def __init__(self, func):
+        self.func = func
+        self.argspec, self.generics = inspect.getfullargspec(func), func.__type_params__
+        self.bind_checker = BindChecker()
 
-    raise ValidationError(f"Type {type(ann)} is not handled.")
-
-
-def validate(func):
-    """Validate the arguments of a function."""
-    argspec, generics = inspect.getfullargspec(func), func.__type_params__
-
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        Gbinds = {G: GenericBinding() for G in generics}
-
-        for name, arg in chain(zip(argspec.args, args), kwargs.items()):
-            annotation = argspec.annotations.get(name)
+    def __call__(self, *args, **kwargs):
+        self.bind_checker.Gbinds = {G: GenericBinding() for G in self.generics}
+        for name, arg in chain(zip(self.argspec.args, args), kwargs.items()):
+            annotation = self.argspec.annotations.get(name)
             if annotation is not None:
-                check_binding(annotation, arg, Gbinds)
+                self.bind_checker.check(annotation, arg)
 
-        if all(val.can_bind for val in Gbinds.values()):
-            result = func(*args, **kwargs)
+        if all(val.can_bind for val in self.bind_checker.Gbinds.values()):
+            result = self.func(*args, **kwargs)
 
-            if "return" in argspec.annotations:
-                ret_ann = argspec.annotations["return"]
+            if "return" in self.argspec.annotations:
+                ret_ann = self.argspec.annotations["return"]
                 log.debug(
                     "annotations=%s result_type=%s return_spec=%s",
-                    argspec.annotations,
+                    self.argspec.annotations,
                     type(result),
                     ret_ann,
                 )
-
                 if ret_ann != type(result):
-                    check_binding(ret_ann, result, Gbinds)
+                    self.bind_checker.check(ret_ann, result)
 
             return result
         else:
-            raise ValidationError(f"{Gbinds=}")
+            raise ValidationError(f"{self.bind_checker.Gbinds=}")
+
+
+def validate(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        return Validator(func)(*args, **kwargs)
 
     return wrapper
