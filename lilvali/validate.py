@@ -2,7 +2,7 @@
 from dataclasses import dataclass, field
 import inspect
 import logging
-from functools import wraps
+from functools import singledispatchmethod, wraps
 from itertools import chain
 from typing import Callable, Sequence, TypeVar
 
@@ -68,12 +68,6 @@ def validator(func):
 
 class BindChecker:
     def __init__(self):
-        self.handlers = {
-            TypeVar: self.handle_typevar,
-            list: self.handle_sequence,
-            tuple: self.handle_sequence,
-            ValidatorFunction: self.handle_callable,
-        }
         self.Gbinds = None
 
     def register_handler(self, type_check, handler):
@@ -92,22 +86,20 @@ class BindChecker:
         else:
             ann_ty = type(ann).__name__
 
-        log.debug(f"{ann=}:{ann_ty} {arg=} {self.Gbinds=}")
+        log.debug("checking %s against %s...", arg, ann_ty)
+        self._check(ann, arg)
 
-        # for type_check, handler in self.handlers.items():
-        #     if isinstance(ann, type_check):
-        #         handler(ann, arg)
-        #         return
+    @singledispatchmethod
+    def _check(self, ann, arg):
+        raise ValidationError(f"Type {type(ann)} for `{arg}: {ann}` is not handled.")
 
-        self.handlers.get(type(ann), self.default_handler)(ann, arg)
-
-    def default_handler(self, ann, arg):
-        raise ValidationError(f"Type {type(ann)} for {ann=} is not handled.")
-
-    def handle_typevar(self, ann, arg):
+    @_check.register(TypeVar)
+    def _(self, ann, arg):
         self.Gbinds[ann].bind_new_arg(arg)
 
-    def handle_sequence(self, ann, arg):
+    @_check.register(list)
+    @_check.register(tuple)
+    def _(self, ann, arg):
         """Handle generic sequences"""
         # Generic tuple
         if isinstance(arg, tuple) and len(ann) == len(arg):
@@ -120,7 +112,8 @@ class BindChecker:
         else:
             raise ValidationError(f"{arg=} is not valid for {ann=}")
 
-    def handle_callable(self, ann, arg):
+    @_check.register(ValidatorFunction)
+    def _(self, ann, arg):
         if not ann(arg):
             raise ValidationError(
                 f"{arg=} is not valid for {ann.__name__ if '__name__' in dir(ann) else ann=}"
