@@ -52,13 +52,27 @@ class GenericBinding:
         self.instances.append(arg)
 
 
+class ValidatorFunction(Callable):
+    def __init__(self, fn):
+        self.fn = fn
+
+    def __call__(self, *args, **kwargs):
+        return self.fn(*args, **kwargs)
+
+
+# convert fn def to validator fn
+def validator(func):
+    vf = ValidatorFunction(func)
+    return vf
+
+
 class BindChecker:
     def __init__(self):
         self.handlers = {
             TypeVar: self.handle_typevar,
             list: self.handle_sequence,
             tuple: self.handle_sequence,
-            Callable: self.handle_callable,
+            ValidatorFunction: self.handle_callable,
         }
         self.Gbinds = None
 
@@ -74,18 +88,21 @@ class BindChecker:
                 raise ValidationError(
                     f"{arg=} is not valid for {ann=} with constraints {ann.__constraints__}"
                 )
-            ann_ty = f"{ann}:ann.__constraints__"
+            ann_ty = f"{ann}:{ann.__constraints__}"
         else:
             ann_ty = type(ann).__name__
 
         log.debug(f"{ann=}:{ann_ty} {arg=} {self.Gbinds=}")
 
-        for type_check, handler in self.handlers.items():
-            if isinstance(ann, type_check):
-                handler(ann, arg)
-                return
+        # for type_check, handler in self.handlers.items():
+        #     if isinstance(ann, type_check):
+        #         handler(ann, arg)
+        #         return
 
-        raise ValidationError(f"Type {type(ann)} is not handled.")
+        self.handlers.get(type(ann), self.default_handler)(ann, arg)
+
+    def default_handler(self, ann, arg):
+        raise ValidationError(f"Type {type(ann)} for {ann=} is not handled.")
 
     def handle_typevar(self, ann, arg):
         self.Gbinds[ann].bind_new_arg(arg)
@@ -105,7 +122,9 @@ class BindChecker:
 
     def handle_callable(self, ann, arg):
         if not ann(arg):
-            raise ValidationError(f"{arg=} is not valid for {ann.__name__}")
+            raise ValidationError(
+                f"{arg=} is not valid for {ann.__name__ if '__name__' in dir(ann) else ann=}"
+            )
 
 
 class Validator:
@@ -140,7 +159,7 @@ class Validator:
                 )
                 # and the return annotation is not simply the type
                 if ret_ann != type(result):
-                    # recursively check the return annotation
+                    # check the return annotation
                     self.bind_checker.check(ret_ann, result)
 
             # return the results if nothing has gone wrong

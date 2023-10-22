@@ -2,7 +2,7 @@ import logging
 import os
 import unittest
 
-from lilvali.validate import validate, ValidationError
+from lilvali.validate import validate, validator, ValidationError
 
 
 class TestValidationFunctions(unittest.TestCase):
@@ -79,7 +79,7 @@ class TestValidationFunctions(unittest.TestCase):
             generic_sequence_func((1, "a"), [1, "b"])
 
     def test_with_custom_validator(self):
-        has_e = lambda arg: True if "e" in arg else False
+        has_e = validator(lambda arg: True if "e" in arg else False)
 
         @validate
         def with_custom_validator(s: has_e):
