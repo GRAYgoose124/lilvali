@@ -84,15 +84,26 @@ class TestValidationFunctions(unittest.TestCase):
 
     def test_with_custom_validator(self):
         has_e = validator(lambda arg: True if "e" in arg else False)
-
         @validate
         def with_custom_validator(s: has_e):
             return s
-
+        
         self.assertEqual(with_custom_validator("Hello"), "Hello")
         with self.assertRaises(ValidationError):
             with_custom_validator("World")
 
+        @validator(base=int)
+        def has_c_or_int(arg): 
+            return True if "c" in arg else False
+        #has_c_or_int = validator(lambda arg: True if "c" in arg else False, base=int)
+
+        @validate
+        def with_custom_validator2(s: has_c_or_int):
+            return s
+
+        self.assertEqual(with_custom_validator2(10), 10)    
+        with self.assertRaises(ValidationError):
+            self.assertEqual(with_custom_validator2("Hello"), "Hello")
 
 if __name__ == "__main__":
     unittest.main()

@@ -2,9 +2,9 @@
 from dataclasses import dataclass, field
 import inspect
 import logging
-from functools import singledispatchmethod, wraps
+from functools import partial, singledispatchmethod, wraps
 from itertools import chain
-from typing import Callable, Sequence, TypeVar
+from typing import Callable, Optional, Sequence, TypeVar
 
 
 log = logging.getLogger(__name__)
@@ -56,17 +56,20 @@ class GenericBinding:
 
 
 class ValidatorFunction(Callable):
-    def __init__(self, fn):
+    def __init__(self, fn, base_type: Optional[type] = None):
         self.fn = fn
+        self.base_type = base_type
 
-    def __call__(self, *args, **kwargs):
-        return self.fn(*args, **kwargs)
+    def __call__(self, value):
+        return self.fn(value)
 
 
-# convert fn def to validator fn
-def validator(func):
-    vf = ValidatorFunction(func)
-    return vf
+def validator(func: Callable = None, *, base: Optional[type] = None):
+    if func is None:
+        # This means the decorator was used with parentheses, like @validator(base=int)
+        return wraps(func)(partial(validator, base=base))
+    else:
+        return wraps(func)(ValidatorFunction(func, base))
 
 
 class BindChecker:
@@ -107,10 +110,19 @@ class BindChecker:
     @check.register(ValidatorFunction)
     @staticmethod
     def _(ann, arg):
-        if not ann(arg):
-            raise ValidationError(
-                f"{arg=} is not valid for {ann.__name__ if '__name__' in dir(ann) else ann=}"
-            )
+        if ann.base_type is not None and not isinstance(arg, ann.base_type):
+            raise InvalidType(f"{arg=} is not {ann.base_type=}")
+
+        # TODO: Fix this, exceptions r 2 slow, probably.
+        # try/except to allow fallback to base_type if VF call fails
+        try:
+            if not ann(arg):
+                raise ValidationError(f"{arg=} failed validation for {ann=}")
+        except Exception as e:
+            if ann.base_type is None:
+                raise ValidationError(
+                    f"{arg=} raised an exception during validation for {ann=}: {str(e)}"
+                )
 
 
 class Validator:
