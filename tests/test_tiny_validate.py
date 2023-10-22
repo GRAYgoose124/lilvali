@@ -9,10 +9,14 @@ class TestValidationFunctions(unittest.TestCase):
     # setup
     def setUp(self) -> None:
         if os.getenv("LILVALI_DEBUG", "False") == "True":
-            logging.basicConfig(level=logging.DEBUG, format="%(levelname)s: %(message)s")
-            logging.getLogger('validate').addHandler(logging.FileHandler('lilvali_unittest_debug.log'))
+            logging.basicConfig(
+                level=logging.DEBUG, format="%(levelname)s: %(message)s"
+            )
+            logging.getLogger("validate").addHandler(
+                logging.FileHandler("lilvali_unittest_debug.log")
+            )
         return super().setUp()
-    
+
     def test_mymod(self):
         @validate
         def mymod[T](a: T, b: T):

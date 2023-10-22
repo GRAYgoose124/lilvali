@@ -17,6 +17,7 @@ def main():
         print(f"{e=}")
     else:
         raise RuntimeError("Expected ValidationError")
-    
+
+
 if __name__ == "__main__":
     main()

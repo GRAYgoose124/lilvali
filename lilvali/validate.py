@@ -70,9 +70,6 @@ class BindChecker:
     def __init__(self):
         self.Gbinds = None
 
-    def register_handler(self, type_check, handler):
-        self.handlers[type_check] = handler
-
     def new_bindings(self, generics):
         self.Gbinds = {G: GenericBinding() for G in generics}
 
@@ -90,7 +87,8 @@ class BindChecker:
         self._check(ann, arg)
 
     @singledispatchmethod
-    def _check(self, ann, arg):
+    @staticmethod
+    def _check(ann, arg):
         raise ValidationError(f"Type {type(ann)} for `{arg}: {ann}` is not handled.")
 
     @_check.register(TypeVar)
@@ -113,7 +111,8 @@ class BindChecker:
             raise ValidationError(f"{arg=} is not valid for {ann=}")
 
     @_check.register(ValidatorFunction)
-    def _(self, ann, arg):
+    @staticmethod
+    def _(ann, arg):
         if not ann(arg):
             raise ValidationError(
                 f"{arg=} is not valid for {ann.__name__ if '__name__' in dir(ann) else ann=}"
