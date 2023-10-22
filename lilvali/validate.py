@@ -4,7 +4,7 @@ import inspect
 import logging
 from functools import partial, singledispatchmethod, wraps
 from itertools import chain
-from typing import Callable, Optional, Sequence, TypeVar
+from typing import Callable, Optional, TypeVar
 
 
 log = logging.getLogger(__name__)

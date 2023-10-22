@@ -82,6 +82,15 @@ class TestValidationFunctions(unittest.TestCase):
         with self.assertRaises(ValidationError):
             generic_sequence_func((1, "a"), [1, "b"])
 
+        @validate
+        def generic_tuple_return[T, U: (int, float)](a: T, b: U) -> (T, U):
+            return a, b
+
+        self.assertEqual(generic_tuple_return(1, 2), (1, 2))
+        self.assertEqual(generic_tuple_return(1, 2.0), (1, 2.0))
+        with self.assertRaises(ValidationError):
+            generic_tuple_return(1, "a")
+
     def test_with_custom_validator(self):
         has_e = validator(lambda arg: True if "e" in arg else False)
         @validate
@@ -104,6 +113,18 @@ class TestValidationFunctions(unittest.TestCase):
         self.assertEqual(with_custom_validator2(10), 10)    
         with self.assertRaises(ValidationError):
             self.assertEqual(with_custom_validator2("Hello"), "Hello")
+
+    @unittest.skip(reason="not implemented, need to handle paratypes - they are not real types.")
+    def test_generic_union(self):
+        @validate
+        def generic_union[T](a: int | T) -> int | T:
+            return a
+        
+        self.assertEqual(generic_union(10), 10)
+        self.assertEqual(generic_union("Hello"), "Hello")
+        with self.assertRaises(ValidationError):
+            generic_union(10.0)
+
 
 if __name__ == "__main__":
     unittest.main()
