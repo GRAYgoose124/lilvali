@@ -28,28 +28,31 @@ class GenericBinding:
     instances: list = field(default_factory=list)
 
     @property
-    def can_bind(self):
-        return not self.is_unbound or self.none_bound
-
-    @property
-    def is_unbound(self):
-        return self.ty is None
+    def is_bound(self):
+        """True if the GenericBinding is unbound"""
+        return self.ty is not None
 
     @property
     def none_bound(self):
         return len(self.instances) == 0
 
-    def can_new_arg_bind(self, arg):
-        return self.is_unbound or self.ty == type(arg)
+    @property
+    def can_bind_generic(self):
+        """True if the GenericBinding can bind to a new arg."""
+        return self.is_bound or self.none_bound
 
-    def bind_new_arg(self, arg):
-        if self.is_unbound:
+    def can_new_arg_bind(self, arg):
+        """True if a given arg can be bound to the current GenericBinding context."""
+        return not self.is_bound or self.ty == type(arg)
+
+    def try_bind_new_arg(self, arg):
+        if self.can_new_arg_bind(arg):
             self.ty = type(arg)
-        elif self.ty != type(arg):
+            self.instances.append(arg)
+        else:
             raise BindingError(
                 f"Generic bound to different types: {self.ty}, but arg is {type(arg)}"
             )
-        self.instances.append(arg)
 
 
 class ValidatorFunction(Callable):
@@ -73,44 +76,35 @@ class BindChecker:
     def new_bindings(self, generics):
         self.Gbinds = {G: GenericBinding() for G in generics}
 
-    def check(self, ann, arg):
-        if isinstance(ann, TypeVar):
-            if len(ann.__constraints__) and type(arg) not in ann.__constraints__:
-                raise ValidationError(
-                    f"{arg=} is not valid for {ann=} with constraints {ann.__constraints__}"
-                )
-            ann_ty = f"{ann}:{ann.__constraints__}"
-        else:
-            ann_ty = type(ann).__name__
-
-        log.debug("checking %s against %s...", arg, ann_ty)
-        self._check(ann, arg)
+    @property
+    def checked(self):
+        return [val.can_bind_generic for val in self.Gbinds.values()]
 
     @singledispatchmethod
-    @staticmethod
-    def _check(ann, arg):
+    def check(self, ann, arg):
         raise ValidationError(f"Type {type(ann)} for `{arg}: {ann}` is not handled.")
 
-    @_check.register(TypeVar)
+    @check.register(TypeVar)
     def _(self, ann, arg):
-        self.Gbinds[ann].bind_new_arg(arg)
+        if len(ann.__constraints__) and type(arg) not in ann.__constraints__:
+            raise ValidationError(
+                f"{arg=} is not valid for {ann=} with constraints {ann.__constraints__}"
+            )
+        else:
+            self.Gbinds[ann].try_bind_new_arg(arg)
 
-    @_check.register(list)
-    @_check.register(tuple)
+    @check.register(list)
+    @check.register(tuple)
     def _(self, ann, arg):
         """Handle generic sequences"""
-        # Generic tuple
-        if isinstance(arg, tuple) and len(ann) == len(arg):
-            for a, b in zip(ann, arg):
-                self.check(a, b)
-        # Generic list
-        elif isinstance(arg, list):
+        if len(ann) == 1:
             for a in arg:
                 self.check(ann[0], a)
-        else:
-            raise ValidationError(f"{arg=} is not valid for {ann=}")
+        elif len(ann) == len(arg):
+            for a, b in zip(ann, arg):
+                self.check(a, b)
 
-    @_check.register(ValidatorFunction)
+    @check.register(ValidatorFunction)
     @staticmethod
     def _(ann, arg):
         if not ann(arg):
@@ -131,12 +125,13 @@ class Validator:
 
         # check all args and kwargs together.
         for name, arg in chain(zip(self.argspec.args, args), kwargs.items()):
-            annotation = self.argspec.annotations.get(name)
-            if annotation is not None:
-                self.bind_checker.check(annotation, arg)
+            ann = self.argspec.annotations.get(name)
+            if ann is not None:
+                self.bind_checker.check(ann, arg)
 
         # after ensuring all values can bind
-        if all(val.can_bind for val in self.bind_checker.Gbinds.values()):
+        checked = self.bind_checker.checked
+        if all(checked):
             # call the function being validated
             result = self.func(*args, **kwargs)
 
@@ -157,7 +152,17 @@ class Validator:
             # return the results if nothing has gone wrong
             return result
         else:
-            raise ValidationError(f"{self.bind_checker.Gbinds=}")
+            # get all bad binds based on checked false indices
+            bad_binds = dict(
+                filter(
+                    lambda x: not checked[x[0]],
+                    self.bind_checker.Gbinds.items(),
+                )
+            )
+
+            raise ValidationError(
+                f"{self.func.__name__} failed to validate:\n{bad_binds}"
+            )
 
 
 def validate(func):

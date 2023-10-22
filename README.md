@@ -1,6 +1,6 @@
 # lilVali
 
-A small Python 3.12 validation experiment for playing with PEP 695.
+A small Python 3.12 validation experiment for playing with [PEP 695](https://peps.python.org/pep-0695/).
 
 ## Install
 The following commands are assuming you've just cloned the repo and haven't `cd`'d yet. Otherwise, replace `lilvali` with `.`
