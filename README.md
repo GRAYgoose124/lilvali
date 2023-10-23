@@ -29,4 +29,8 @@ python lilvali/demo
 ```
 
 ## TODO
-- recursive validation
+- maybe: 
+  - cache validated args with their bindings?
+  - recursive validation
+  - register custom validators at runtime 
+- support typing: TypeAlias, NewType, Literal, Any, etc.

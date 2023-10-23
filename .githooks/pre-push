@@ -5,3 +5,13 @@ if ! python -m unittest discover -s tests; then
   echo "Tests failed. Push aborted, ensure \`lilvali\` can be found in your PATH."
   exit 1
 fi
+
+if ! lilvali; then
+  echo "lilvali failed. Push aborted."
+  exit 1
+fi
+
+if ! python demo>/dev/null; then
+  echo "Demo failed. Push aborted."
+  exit 1
+fi

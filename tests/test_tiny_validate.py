@@ -133,7 +133,7 @@ class TestValidationFunctions(unittest.TestCase):
         self.assertEqual(add(1, 2.0), 3.0)
         with self.assertRaises(ValidationError):
             add(1.0, 2)
-        
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -5,7 +5,7 @@ import logging
 from functools import partial, singledispatchmethod, wraps
 from itertools import chain
 import types
-from typing import Callable, Optional, TypeVar
+from typing import Any, Callable, Optional, TypeVar
 import typing
 
 
@@ -25,7 +25,9 @@ class BindingError(ValidationError):
 
 
 @dataclass
-class GenericBinding:
+class _GenericBinding:
+    """Represents a Generic type binding state."""
+
     ty: type = None
     instances: list = field(default_factory=list)
 
@@ -57,7 +59,9 @@ class GenericBinding:
             )
 
 
-class ValidatorFunction(Callable):
+class _ValidatorFunction(Callable):
+    """Callable wrapper for typifying validator functions."""
+
     def __init__(self, fn, base_type: Optional[type] = None):
         self.fn = fn
         self.base_type = base_type
@@ -66,20 +70,17 @@ class ValidatorFunction(Callable):
         return self.fn(value)
 
 
-def validator(func: Callable = None, *, base: Optional[type] = None):
-    if func is None:
-        # This means the decorator was used with parentheses, like @validator(base=int)
-        return wraps(func)(partial(validator, base=base))
-    else:
-        return wraps(func)(ValidatorFunction(func, base))
+class _BindChecker:
+    """Checks if a value can bind to a type annotation given some already bound states."""
 
-
-class BindChecker:
     def __init__(self):
         self.Gbinds = None
 
     def new_bindings(self, generics):
-        self.Gbinds = {G: GenericBinding() for G in generics}
+        self.Gbinds = {G: _GenericBinding() for G in generics}
+
+    def register_validator(self, ty, handler: Callable[[type, Any], None]):
+        self.check.register(ty)(handler)
 
     @property
     def checked(self):
@@ -120,7 +121,7 @@ class BindChecker:
             for a, b in zip(ann, arg):
                 self.check(a, b)
 
-    @check.register(ValidatorFunction)
+    @check.register(_ValidatorFunction)
     @staticmethod
     def _(ann, arg):
         if ann.base_type is not None and not isinstance(arg, ann.base_type):
@@ -150,11 +151,13 @@ class BindChecker:
         raise ValidationError(f"{arg=} failed to bind to {ann=}")
 
 
-class Validator:
+class _Validator:
+    """Callable wrapper for validating function arguments and return values."""
+
     def __init__(self, func):
         self.func = func
         self.argspec, self.generics = inspect.getfullargspec(func), func.__type_params__
-        self.bind_checker = BindChecker()
+        self.bind_checker = _BindChecker()
 
     def __call__(self, *args, **kwargs):
         # Refresh the BindChecker with new bindings on func call.
@@ -202,9 +205,20 @@ class Validator:
             )
 
 
+def validator(func: Callable = None, *, base: Optional[type] = None):
+    """Decorator to create custom validator functions for use in validated annotations."""
+    if func is None:
+        # This means the decorator was used with parentheses, like @validator(base=int)
+        return wraps(func)(partial(validator, base=base))
+    else:
+        return wraps(func)(_ValidatorFunction(func, base))
+
+
 def validate(func):
+    """Decorator to strictly validate function arguments and return values against their annotations."""
+
     @wraps(func)
     def wrapper(*args, **kwargs):
-        return Validator(func)(*args, **kwargs)
+        return _Validator(func)(*args, **kwargs)
 
     return wrapper
