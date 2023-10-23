@@ -11,7 +11,7 @@ setup(
     packages=find_packages(),
     install_requires=[],
     extras_require={"dev": ["black", "isort", "flake8", "mypy"]},
-    python_requires=">=3.8",
+    python_requires=">=3.12",
     license="MIT",
     classifiers=[
         "Intended Audience :: Developers",

@@ -87,11 +87,11 @@ class _BindChecker:
         return [val.can_bind_generic for val in self.Gbinds.values()]
 
     @singledispatchmethod
-    def check(self, ann, arg):
+    def check(self, ann: Any, arg: Any):
         raise ValidationError(f"Type {type(ann)} for `{arg}: {ann}` is not handled.")
 
-    @check.register(TypeVar)
-    def _(self, ann, arg):
+    @check.register
+    def _(self, ann: TypeVar, arg: Any):
         if len(ann.__constraints__) and type(arg) not in ann.__constraints__:
             raise ValidationError(
                 f"{arg=} is not valid for {ann=} with constraints {ann.__constraints__}"
@@ -99,20 +99,13 @@ class _BindChecker:
         else:
             self.Gbinds[ann].try_bind_new_arg(arg)
 
-    @check.register(int)
-    @check.register(float)
-    @check.register(str)
-    @check.register(bool)
-    @check.register(bytes)
-    @check.register(type(None))
-    @check.register(type)
-    def _(self, ann, arg):
+    @check.register
+    def _(self, ann: int | float | str | bool | bytes | type(None) | type, arg: Any):
         if not isinstance(arg, ann):
             raise InvalidType(f"{arg=} is not {ann=}")
 
-    @check.register(list)
-    @check.register(tuple)
-    def _(self, ann, arg):
+    @check.register
+    def _(self, ann: list | tuple, arg: Any):
         """Handle generic sequences"""
         if len(ann) == 1:
             for a in arg:
@@ -121,9 +114,9 @@ class _BindChecker:
             for a, b in zip(ann, arg):
                 self.check(a, b)
 
-    @check.register(_ValidatorFunction)
+    @check.register
     @staticmethod
-    def _(ann, arg):
+    def _(ann: _ValidatorFunction, arg: Any):
         if ann.base_type is not None and not isinstance(arg, ann.base_type):
             raise InvalidType(f"{arg=} is not {ann.base_type=}")
 
@@ -138,9 +131,8 @@ class _BindChecker:
                     f"{arg=} raised an exception during validation for {ann=}: {str(e)}"
                 )
 
-    @check.register(types.UnionType)
-    @check.register(typing._UnionGenericAlias)
-    def _(self, ann, arg):
+    @check.register
+    def _(self, ann: types.UnionType | typing._UnionGenericAlias, arg: Any):
         """Handle union types"""
         for a in ann.__args__:
             try:
