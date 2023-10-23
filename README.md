@@ -5,6 +5,13 @@ A small Python 3.12 validation experiment for playing with [PEP 695](https://pep
 ## Install
 The following commands are assuming you've just cloned the repo and haven't `cd`'d yet. Otherwise, replace `lilvali` with `.`
 
+### Requirements
+Currently optional except for `demo/dw`.
+```bash
+pip install -r lilvali/requirements.txt
+```
+
+### Installing
 ```bash
 # For development:
 pip install -e lilvali
@@ -13,20 +20,26 @@ pip install -e lilvali
 pip install lilvali
 ```
 
+
+## Usage
+After installing:
+```bash
+# (Does nothing right now.)
+lilvali
+```
+### Demos
+```bash
+# You may also want to try the demo:
+python lilvali/demo/basic
+
+python lilvali/demo/dw # reqires dataclass_wizard
+```
+
 ### Testing
 ```bash
 LILVALI_DEBUG="False" python -m unittest discover -s lilvali/tests 
 ```
 
-### Usage
-After installing:
-```bash
-# (Does nothing right now.)
-lilvali
-
-# You may also want to try the demo:
-python lilvali/demo
-```
 
 ## TODO
 - maybe: 
