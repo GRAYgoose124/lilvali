@@ -2,7 +2,7 @@ from lilvali import validate, ValidationError
 
 
 @validate
-def add[T: (int, float)](x: int, y: T) -> int:
+def add[T: (int, float)](x: int, y: T) -> int | float:
     return x + y
 
 

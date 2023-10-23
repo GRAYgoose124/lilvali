@@ -4,7 +4,9 @@ import inspect
 import logging
 from functools import partial, singledispatchmethod, wraps
 from itertools import chain
+import types
 from typing import Callable, Optional, TypeVar
+import typing
 
 
 log = logging.getLogger(__name__)
@@ -96,6 +98,17 @@ class BindChecker:
         else:
             self.Gbinds[ann].try_bind_new_arg(arg)
 
+    @check.register(int)
+    @check.register(float)
+    @check.register(str)
+    @check.register(bool)
+    @check.register(bytes)
+    @check.register(type(None))
+    @check.register(type)
+    def _(self, ann, arg):
+        if not isinstance(arg, ann):
+            raise InvalidType(f"{arg=} is not {ann=}")
+
     @check.register(list)
     @check.register(tuple)
     def _(self, ann, arg):
@@ -123,6 +136,18 @@ class BindChecker:
                 raise ValidationError(
                     f"{arg=} raised an exception during validation for {ann=}: {str(e)}"
                 )
+
+    @check.register(types.UnionType)
+    @check.register(typing._UnionGenericAlias)
+    def _(self, ann, arg):
+        """Handle union types"""
+        for a in ann.__args__:
+            try:
+                self.check(a, arg)
+                return
+            except ValidationError:
+                pass
+        raise ValidationError(f"{arg=} failed to bind to {ann=}")
 
 
 class Validator:

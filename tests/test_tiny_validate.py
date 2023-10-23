@@ -114,10 +114,9 @@ class TestValidationFunctions(unittest.TestCase):
         with self.assertRaises(ValidationError):
             self.assertEqual(with_custom_validator2("Hello"), "Hello")
 
-    @unittest.skip(reason="not implemented, need to handle paratypes - they are not real types.")
     def test_generic_union(self):
         @validate
-        def generic_union[T](a: int | T) -> int | T:
+        def generic_union[T: (str, bool)](a: int | T) -> int | T:
             return a
         
         self.assertEqual(generic_union(10), 10)
@@ -125,6 +124,16 @@ class TestValidationFunctions(unittest.TestCase):
         with self.assertRaises(ValidationError):
             generic_union(10.0)
 
+    def test_generic_union_with_constraints(self):
+        @validate
+        def add[T: (int, float)](x: int, y: T) -> int | float:
+            return x + y
+        
+        self.assertEqual(add(1, 2), 3)
+        self.assertEqual(add(1, 2.0), 3.0)
+        with self.assertRaises(ValidationError):
+            add(1.0, 2)
+        
 
 if __name__ == "__main__":
     unittest.main()
