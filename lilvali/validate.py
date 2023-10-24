@@ -208,10 +208,9 @@ class _Validator:
                     type(result),
                     ret_ann,
                 )
-                # and the return annotation is not simply the type
-                if ret_ann != type(result):
-                    # check the return annotation
-                    self.bind_checker.check(ret_ann, result)
+
+                # check it
+                self.bind_checker.check(ret_ann, result)
 
             # return the results if nothing has gone wrong
             return result
