@@ -4,9 +4,16 @@ import inspect
 import logging
 from functools import partial, singledispatchmethod, wraps
 from itertools import chain
-import types
-from typing import Any, Callable, Dict, Optional, TypeVar
-import typing
+from types import GenericAlias, UnionType
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Optional,
+    TypeVar,
+    _SpecialGenericAlias,
+    _UnionGenericAlias,
+)
 
 
 log = logging.getLogger(__name__)
@@ -112,7 +119,7 @@ class _BindChecker:
     @check.register
     def _(
         self,
-        ann: types.GenericAlias | typing._SpecialGenericAlias,
+        ann: GenericAlias | _SpecialGenericAlias,
         arg: Any,
         arg_types=None,
     ):
@@ -161,13 +168,12 @@ class _BindChecker:
                 raise ValidationError(f"{arg=} failed validation for {ann=}")
 
     @check.register
-    def _(
-        self, ann: types.UnionType | typing._UnionGenericAlias, arg: Any, arg_types=None
-    ):
+    def _(self, ann: UnionType | _UnionGenericAlias, arg: Any, arg_types=None):
         """Handle union types"""
         for a in ann.__args__:
             try:
-                self.check(a, arg)
+                # TODO: This probably will cause a bug as it could bind and then fail, leaving some bound remnants.
+                self.check(a, arg)  # , update_bindings=False) # ?
                 return
             except ValidationError:
                 pass
