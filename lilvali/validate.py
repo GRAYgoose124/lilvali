@@ -4,7 +4,6 @@ import inspect
 import logging
 from functools import partial, singledispatchmethod, wraps
 from itertools import chain
-from types import GenericAlias, UnionType
 from typing import (
     Any,
     Callable,
@@ -15,58 +14,14 @@ from typing import (
     _UnionGenericAlias,
 )
 
+from .errors import BindingError, ValidationError, InvalidType
+from .binding import BindChecker, GenericBinding
+
 
 log = logging.getLogger(__name__)
 
 
-class ValidationError(TypeError):
-    pass
-
-
-class InvalidType(ValidationError):
-    pass
-
-
-class BindingError(ValidationError):
-    pass
-
-
-@dataclass
-class _GenericBinding:
-    """Represents a Generic type binding state."""
-
-    ty: type = None
-    instances: list = field(default_factory=list)
-
-    @property
-    def is_bound(self):
-        """True if the GenericBinding is unbound"""
-        return self.ty is not None
-
-    @property
-    def none_bound(self):
-        return len(self.instances) == 0
-
-    @property
-    def can_bind_generic(self):
-        """True if the GenericBinding can bind to a new arg."""
-        return self.is_bound or self.none_bound
-
-    def can_new_arg_bind(self, arg):
-        """True if a given arg can be bound to the current GenericBinding context."""
-        return not self.is_bound or self.ty == type(arg)
-
-    def try_bind_new_arg(self, arg):
-        if self.can_new_arg_bind(arg):
-            self.ty = type(arg)
-            self.instances.append(arg)
-        else:
-            raise BindingError(
-                f"Generic bound to different types: {self.ty}, but arg is {type(arg)}"
-            )
-
-
-class _ValidatorFunction(Callable):
+class ValidatorFunction(Callable):
     """Callable wrapper for typifying validator functions."""
 
     def __init__(self, fn, base_type: Optional[type] = None):
@@ -76,84 +31,16 @@ class _ValidatorFunction(Callable):
     def __call__(self, value):
         return self.fn(value)
 
+    def __str__(self):
+        return f"{self.fn.__name__}:{self.base_type}"
 
-class _BindChecker:
-    """Checks if a value can bind to a type annotation given some already bound states."""
 
+class ValidationBindChecker(BindChecker):
     def __init__(self):
-        self.Gbinds = None
+        super().__init__()
+        self.check.register(self.vf_check)
 
-    def new_bindings(self, generics):
-        self.Gbinds = {G: _GenericBinding() for G in generics}
-
-    def register_validator(self, ty, handler: Callable[[type, Any], None]):
-        self.check.register(ty)(handler)
-
-    @property
-    def checked(self):
-        return [val.can_bind_generic for val in self.Gbinds.values()]
-
-    @singledispatchmethod
-    def check(self, ann: Any, arg: Any, arg_types=None):
-        raise ValidationError(f"Type {type(ann)} for `{arg}: {ann=}` is not handled.")
-
-    @check.register
-    def _(self, ann: TypeVar, arg: Any, arg_types=None):
-        if len(ann.__constraints__) and type(arg) not in ann.__constraints__:
-            raise ValidationError(
-                f"{arg=} is not valid for {ann=} with constraints {ann.__constraints__}"
-            )
-        else:
-            self.Gbinds[ann].try_bind_new_arg(arg)
-
-    @check.register
-    def _(
-        self,
-        ann: int | float | str | bool | bytes | type(None) | type,
-        arg: Any,
-        arg_types=None,
-    ):
-        if not isinstance(arg, ann):
-            raise InvalidType(f"{arg=} is not {ann=}")
-
-    @check.register
-    def _(
-        self,
-        ann: GenericAlias | _SpecialGenericAlias,
-        arg: Any,
-        arg_types=None,
-    ):
-        if hasattr(ann, "__args__") and len(ann.__args__):
-            if issubclass(ann.__origin__, dict):
-                self.check({}, arg, arg_types=ann.__args__)
-
-        # Check the base
-        # self.check(ann.__origin__, arg)
-
-    @check.register
-    def _(self, ann: list | tuple, arg: Any):
-        """Handle generic sequences"""
-        if len(ann) == 1:
-            for a in arg:
-                self.check(ann[0], a)
-        elif len(ann) == len(arg):
-            for a, b in zip(ann, arg):
-                self.check(a, b)
-
-    @check.register
-    def _(self, ann: dict, arg: Any, arg_types=None):
-        # TODO: recursive check dicts
-        if not isinstance(arg, dict):
-            raise ValidationError(f"{arg=} failed for dict annotation: {type(ann)}")
-
-        if arg_types is not None:
-            for k, v in arg.items():
-                self.check(arg_types[0], k)
-                self.check(arg_types[1], v)
-
-    @check.register
-    @staticmethod
-    def _(ann: _ValidatorFunction, arg: Any, arg_types=None):
+    def vf_check(self, ann: ValidatorFunction, arg: Any, arg_types=None):
         # TODO: Fix this, exceptions r 2 slow, probably.
         # try/except to allow fallback to base_type if VF call fails
         try:
@@ -162,22 +49,11 @@ class _BindChecker:
             result = False
 
         if not result:
+            print(ann)
             if ann.base_type is not None and not isinstance(arg, ann.base_type):
                 raise InvalidType(f"{arg=} is not {ann.base_type=}")
             elif ann.base_type is None:
                 raise ValidationError(f"{arg=} failed validation for {ann=}")
-
-    @check.register
-    def _(self, ann: UnionType | _UnionGenericAlias, arg: Any, arg_types=None):
-        """Handle union types"""
-        for a in ann.__args__:
-            try:
-                # TODO: This probably will cause a bug as it could bind and then fail, leaving some bound remnants.
-                self.check(a, arg)  # , update_bindings=False) # ?
-                return
-            except ValidationError:
-                pass
-        raise ValidationError(f"{arg=} failed to bind to {ann=}")
 
 
 class _Validator:
@@ -186,7 +62,7 @@ class _Validator:
     def __init__(self, func):
         self.func = func
         self.argspec, self.generics = inspect.getfullargspec(func), func.__type_params__
-        self.bind_checker = _BindChecker()
+        self.bind_checker = ValidationBindChecker()
 
     def __call__(self, *args, **kwargs):
         # Refresh the BindChecker with new bindings on func call.
@@ -238,7 +114,7 @@ def validator(func: Callable = None, *, base: Optional[type] = None):
         # This means the decorator was used with parentheses, like @validator(base=int)
         return wraps(func)(partial(validator, base=base))
     else:
-        return wraps(func)(_ValidatorFunction(func, base))
+        return wraps(func)(ValidatorFunction(func, base))
 
 
 def validate(func):
