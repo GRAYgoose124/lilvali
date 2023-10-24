@@ -110,7 +110,8 @@ class TestValidationFunctions(unittest.TestCase):
         def with_custom_validator2(s: has_c_or_int):
             return s
 
-        self.assertEqual(with_custom_validator2(10), 10)    
+        self.assertEqual(with_custom_validator2(10), 10)
+        self.assertEqual(with_custom_validator2("has_c"), "has_c")
         with self.assertRaises(ValidationError):
             self.assertEqual(with_custom_validator2("Hello"), "Hello")
 

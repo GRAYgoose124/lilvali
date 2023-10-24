@@ -147,16 +147,16 @@ class _BindChecker:
     @check.register
     @staticmethod
     def _(ann: _ValidatorFunction, arg: Any, arg_types=None):
-        if ann.base_type is not None and not isinstance(arg, ann.base_type):
-            raise InvalidType(f"{arg=} is not {ann.base_type=}")
-
         # TODO: Fix this, exceptions r 2 slow, probably.
         # try/except to allow fallback to base_type if VF call fails
         try:
             if not ann(arg):
-                raise ValidationError(f"{arg=} failed validation for {ann=}")
+                if ann.base_type is None or not isinstance(arg, ann.base_type):
+                    raise InvalidType(f"{arg=} is not {ann.base_type=}")
+                else:
+                    raise ValidationError(f"{arg=} failed validation for {ann=}")
         except Exception as e:
-            if ann.base_type is None:
+            if ann.base_type is None or not isinstance(arg, ann.base_type):
                 raise ValidationError(
                     f"{arg=} raised an exception during validation for {ann=}: {str(e)}"
                 )
@@ -190,8 +190,7 @@ class _Validator:
         # check all args and kwargs together.
         for name, arg in chain(zip(self.argspec.args, args), kwargs.items()):
             ann = self.argspec.annotations.get(name)
-            if ann is not None:
-                self.bind_checker.check(ann, arg)
+            self.bind_checker.check(ann, arg)
 
         # after ensuring all values can bind
         checked = self.bind_checker.checked
