@@ -150,16 +150,15 @@ class _BindChecker:
         # TODO: Fix this, exceptions r 2 slow, probably.
         # try/except to allow fallback to base_type if VF call fails
         try:
-            if not ann(arg):
-                if ann.base_type is None or not isinstance(arg, ann.base_type):
-                    raise InvalidType(f"{arg=} is not {ann.base_type=}")
-                else:
-                    raise ValidationError(f"{arg=} failed validation for {ann=}")
+            result = ann(arg)
         except Exception as e:
-            if ann.base_type is None or not isinstance(arg, ann.base_type):
-                raise ValidationError(
-                    f"{arg=} raised an exception during validation for {ann=}: {str(e)}"
-                )
+            result = False
+
+        if not result:
+            if ann.base_type is not None and not isinstance(arg, ann.base_type):
+                raise InvalidType(f"{arg=} is not {ann.base_type=}")
+            elif ann.base_type is None:
+                raise ValidationError(f"{arg=} failed validation for {ann=}")
 
     @check.register
     def _(
