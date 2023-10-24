@@ -43,7 +43,7 @@ class TestValidationFunctions(unittest.TestCase):
 
     def test_variadic_func(self):
         @validate
-        def variadic_func[T, *Ts](a: T, *args: [T]) -> T:
+        def variadic_func[T, *Ts](a: T, *args: [Ts]) -> T:
             if isinstance(a, str):
                 return f"{a}".join(args)
             return sum(
@@ -93,18 +93,20 @@ class TestValidationFunctions(unittest.TestCase):
 
     def test_with_custom_validator(self):
         has_e = validator(lambda arg: True if "e" in arg else False)
+
         @validate
         def with_custom_validator(s: has_e):
             return s
-        
+
         self.assertEqual(with_custom_validator("Hello"), "Hello")
         with self.assertRaises(ValidationError):
             with_custom_validator("World")
 
         @validator(base=int)
-        def has_c_or_int(arg): 
+        def has_c_or_int(arg):
             return True if "c" in arg else False
-        #has_c_or_int = validator(lambda arg: True if "c" in arg else False, base=int)
+
+        # has_c_or_int = validator(lambda arg: True if "c" in arg else False, base=int)
 
         @validate
         def with_custom_validator2(s: has_c_or_int):
@@ -119,7 +121,7 @@ class TestValidationFunctions(unittest.TestCase):
         @validate
         def generic_union[T: (str, bool)](a: int | T) -> int | T:
             return a
-        
+
         self.assertEqual(generic_union(10), 10)
         self.assertEqual(generic_union("Hello"), "Hello")
         with self.assertRaises(ValidationError):
@@ -129,7 +131,7 @@ class TestValidationFunctions(unittest.TestCase):
         @validate
         def add[T: (int, float)](x: int, y: T) -> int | float:
             return x + y
-        
+
         self.assertEqual(add(1, 2), 3)
         self.assertEqual(add(1, 2.0), 3.0)
         with self.assertRaises(ValidationError):
@@ -138,17 +140,16 @@ class TestValidationFunctions(unittest.TestCase):
     def test_validate_dict(self):
         @validate
         def func_a(a: dict):
-            return ";".join(f"{k},{v}" for k,v in a.items())
+            return ";".join(f"{k},{v}" for k, v in a.items())
 
         @validate
         def func_b(a: dict[str, int]) -> int:
             return sum(a.values())
-        
-        self.assertEqual(func_a({'a': 1, 'b': 2}),  "a,1;b,2")
-        self.assertEqual(func_b({'a': 1, 'b': 2}), 3)
-        with self.assertRaises(ValidationError):
-            func_b({'a': 1, 'b': 'c'})
 
+        self.assertEqual(func_a({"a": 1, "b": 2}), "a,1;b,2")
+        self.assertEqual(func_b({"a": 1, "b": 2}), 3)
+        with self.assertRaises(ValidationError):
+            func_b({"a": 1, "b": "c"})
 
 
 if __name__ == "__main__":

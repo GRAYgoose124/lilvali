@@ -49,7 +49,6 @@ class ValidationBindChecker(BindChecker):
             result = False
 
         if not result:
-            print(ann)
             if ann.base_type is not None and not isinstance(arg, ann.base_type):
                 raise InvalidType(f"{arg=} is not {ann.base_type=}")
             elif ann.base_type is None:
@@ -119,9 +118,10 @@ def validator(func: Callable = None, *, base: Optional[type] = None):
 
 def validate(func):
     """Decorator to strictly validate function arguments and return values against their annotations."""
+    validated_func = _Validator(func)
 
     @wraps(func)
     def wrapper(*args, **kwargs):
-        return _Validator(func)(*args, **kwargs)
+        return validated_func(*args, **kwargs)
 
     return wrapper
