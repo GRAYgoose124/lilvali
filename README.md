@@ -46,4 +46,9 @@ LILVALI_DEBUG="False" python -m unittest discover -s lilvali/tests
   - cache validated args with their bindings?
   - recursive validation
   - register custom validators at runtime 
-- support typing: TypeAlias, NewType, Literal, Any, etc.
+- support typing: 
+  - [ ] TypeAlias
+  - [ ] NewType
+  - [ ] Literal
+  - [ ] Any
+- [ ] JsonWizard support

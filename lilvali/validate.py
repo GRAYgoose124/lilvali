@@ -5,7 +5,7 @@ import logging
 from functools import partial, singledispatchmethod, wraps
 from itertools import chain
 import types
-from typing import Any, Callable, Optional, TypeVar
+from typing import Any, Callable, Dict, Optional, TypeVar
 import typing
 
 
@@ -87,11 +87,11 @@ class _BindChecker:
         return [val.can_bind_generic for val in self.Gbinds.values()]
 
     @singledispatchmethod
-    def check(self, ann: Any, arg: Any):
-        raise ValidationError(f"Type {type(ann)} for `{arg}: {ann}` is not handled.")
+    def check(self, ann: Any, arg: Any, arg_types=None):
+        raise ValidationError(f"Type {type(ann)} for `{arg}: {ann=}` is not handled.")
 
     @check.register
-    def _(self, ann: TypeVar, arg: Any):
+    def _(self, ann: TypeVar, arg: Any, arg_types=None):
         if len(ann.__constraints__) and type(arg) not in ann.__constraints__:
             raise ValidationError(
                 f"{arg=} is not valid for {ann=} with constraints {ann.__constraints__}"
@@ -100,9 +100,28 @@ class _BindChecker:
             self.Gbinds[ann].try_bind_new_arg(arg)
 
     @check.register
-    def _(self, ann: int | float | str | bool | bytes | type(None) | type, arg: Any):
+    def _(
+        self,
+        ann: int | float | str | bool | bytes | type(None) | type,
+        arg: Any,
+        arg_types=None,
+    ):
         if not isinstance(arg, ann):
             raise InvalidType(f"{arg=} is not {ann=}")
+
+    @check.register
+    def _(
+        self,
+        ann: types.GenericAlias | typing._SpecialGenericAlias,
+        arg: Any,
+        arg_types=None,
+    ):
+        if hasattr(ann, "__args__") and len(ann.__args__):
+            if issubclass(ann.__origin__, dict):
+                self.check({}, arg, arg_types=ann.__args__)
+
+        # Check the base
+        # self.check(ann.__origin__, arg)
 
     @check.register
     def _(self, ann: list | tuple, arg: Any):
@@ -115,8 +134,19 @@ class _BindChecker:
                 self.check(a, b)
 
     @check.register
+    def _(self, ann: dict, arg: Any, arg_types=None):
+        # TODO: recursive check dicts
+        if not isinstance(arg, dict):
+            raise ValidationError(f"{arg=} failed for dict annotation: {type(ann)}")
+
+        if arg_types is not None:
+            for k, v in arg.items():
+                self.check(arg_types[0], k)
+                self.check(arg_types[1], v)
+
+    @check.register
     @staticmethod
-    def _(ann: _ValidatorFunction, arg: Any):
+    def _(ann: _ValidatorFunction, arg: Any, arg_types=None):
         if ann.base_type is not None and not isinstance(arg, ann.base_type):
             raise InvalidType(f"{arg=} is not {ann.base_type=}")
 
@@ -132,7 +162,9 @@ class _BindChecker:
                 )
 
     @check.register
-    def _(self, ann: types.UnionType | typing._UnionGenericAlias, arg: Any):
+    def _(
+        self, ann: types.UnionType | typing._UnionGenericAlias, arg: Any, arg_types=None
+    ):
         """Handle union types"""
         for a in ann.__args__:
             try:

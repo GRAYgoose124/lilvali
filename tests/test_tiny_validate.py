@@ -134,6 +134,21 @@ class TestValidationFunctions(unittest.TestCase):
         with self.assertRaises(ValidationError):
             add(1.0, 2)
 
+    def test_validate_dict(self):
+        @validate
+        def func_a(a: dict):
+            return ";".join(f"{k},{v}" for k,v in a.items())
+
+        @validate
+        def func_b(a: dict[str, int]) -> int:
+            return sum(a.values())
+        
+        self.assertEqual(func_a({'a': 1, 'b': 2}),  "a,1;b,2")
+        self.assertEqual(func_b({'a': 1, 'b': 2}), 3)
+        with self.assertRaises(ValidationError):
+            func_b({'a': 1, 'b': 'c'})
+
+
 
 if __name__ == "__main__":
     unittest.main()

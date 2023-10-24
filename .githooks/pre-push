@@ -11,7 +11,7 @@ if ! lilvali; then
   exit 1
 fi
 
-if ! python demo>/dev/null; then
+if ! python demo/basic >/dev/null; then
   echo "Demo failed. Push aborted."
   exit 1
 fi
