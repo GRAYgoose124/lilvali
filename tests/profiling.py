@@ -12,11 +12,13 @@ def prof_main():
     
     @validate
     def f[T: (int, float)](x: has_c_or_int, y: T) -> int | float:
+        if isinstance(x, str):
+            x=int(x.split('=')[1])
         return x + y if random.random() < 0.5 else x - y
     
     S=0
     for i in range(100000):
-        S = f(S, 1 if random.random() < 0.5 else -1)
+        S = f(S if random.random() < 0.5 else f"c={S}", 1 if random.random() < 0.5 else -1)
 
 
 def main():
