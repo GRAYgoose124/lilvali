@@ -172,14 +172,21 @@ class TestValidationFunctions(unittest.TestCase):
             return [item for sublist in a.values() for item in sublist]
 
         self.assertEqual(nested_func({"a": [1, 2], "b": [3, 4]}), [1, 2, 3, 4])
+        # TODO: nested validation of dict values
+        # with self.assertRaises(ValidationError):
+        #     nested_func({"a": [1, 2], "b": [3, 5.0]})
+
+        # Some arcane PEP suggests this is possible...
+        # @validate
+        # def nested_func2[T, U]((x, y: T), z: U) -> (U, T):
+        #     pass
 
     def test_multiple_validators(self):
         is_even = validator(lambda arg: arg % 2 == 0)
         is_positive = validator(lambda arg: arg > 0)
 
-        combined = (is_even & is_positive)
         @validate
-        def multi_validator_func(a: combined):
+        def multi_validator_func(a: is_even & is_positive):
             return a
 
         self.assertEqual(multi_validator_func(4), 4)

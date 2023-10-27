@@ -23,7 +23,7 @@ class ValidatorFunction(Callable):
         self,
         fn: Callable[..., bool],
         base_type: Optional[type] = None,
-        error: str = None,
+        error: str = "",
     ):
         self.fn = fn
         self.base_type = base_type
@@ -39,7 +39,7 @@ class ValidatorFunction(Callable):
         return ValidatorFunction(lambda value: self.fn(value) and other.fn(value))
 
     def __or__(self, other: "ValidatorFunction") -> "ValidatorFunction":
-        return ValidatorFunction(lambda value: self(value) or other(value))
+        return ValidatorFunction(lambda value: self.fn(value) or other.fn(value))
 
 
 class ValidationBindChecker(BindChecker):
@@ -119,7 +119,7 @@ class _Validator:
 
 def validator(func: Callable = None, *, base: Optional[type] = None, error: str = None):
     """Decorator to create custom validator functions for use in validated annotations."""
-    if func is None:
+    if func is None or not callable(func):
         # This means the decorator was used with parentheses, like @validator(base=int)
         return partial(validator, base=base, error=error)
     else:
