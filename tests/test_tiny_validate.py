@@ -149,6 +149,53 @@ class TestValidationFunctions(unittest.TestCase):
         with self.assertRaises(ValidationError):
             func_b({'a': 1, 'b': 'c'})
 
+    def test_none_values(self):
+        @validate
+        def none_func[T: (int, str)](a: T) -> T:
+            return a
+
+        with self.assertRaises(ValidationError):
+            none_func(None)
+
+    def test_no_annotations(self):
+        @validate
+        def no_anno_func(a, b):
+            return a + b
+
+        no_anno_func(1, 2)
+
+    def test_nested_generics(self):
+        @validate
+        def nested_func[T: (int, str)](a: dict[str, list[T]]) -> list[T]:
+            return [item for sublist in a.values() for item in sublist]
+
+        self.assertEqual(nested_func({"a": [1, 2], "b": [3, 4]}), [1, 2, 3, 4])
+
+    def test_multiple_validators(self):
+        is_even = validator(lambda arg: arg % 2 == 0)
+        is_positive = validator(lambda arg: arg > 0)
+
+        combined = (is_even & is_positive)
+        @validate
+        def multi_validator_func(a: combined):
+            return a
+
+        self.assertEqual(multi_validator_func(4), 4)
+        with self.assertRaises(ValidationError):
+            multi_validator_func(3)
+        with self.assertRaises(ValidationError):
+            multi_validator_func(-4)
+
+    def test_custom_error_message(self):
+        is_even = validator(lambda arg: arg % 2 == 0, error="Not an even number!")
+
+        @validate
+        def custom_error_func(a: is_even):
+            return a
+
+        with self.assertRaisesRegex(ValidationError, "Not an even number!"):
+            custom_error_func(3)
+
 
 
 if __name__ == "__main__":
