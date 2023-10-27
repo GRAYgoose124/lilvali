@@ -88,6 +88,8 @@ class BindChecker:
         arg: Any,
         arg_types=None,
     ):
+        if ann is None:
+            return
         if not isinstance(arg, ann):
             raise InvalidType(f"{arg=} is not {ann=}")
 

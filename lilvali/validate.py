@@ -19,15 +19,27 @@ log = logging.getLogger(__name__)
 class ValidatorFunction(Callable):
     """Callable wrapper for typifying validator functions."""
 
-    def __init__(self, fn, base_type: Optional[type] = None):
+    def __init__(
+        self,
+        fn: Callable[..., bool],
+        base_type: Optional[type] = None,
+        error: str = None,
+    ):
         self.fn = fn
         self.base_type = base_type
+        self.error = error
+
+        self.__call__ = wraps(fn)(self)
+        self.name = fn.__name__
 
     def __call__(self, value):
         return self.fn(value)
 
-    def __str__(self):
-        return f"{self.fn.__name__}:{self.base_type}"
+    def __and__(self, other: "ValidatorFunction"):
+        return ValidatorFunction(lambda value: self.fn(value) and other.fn(value))
+
+    def __or__(self, other: "ValidatorFunction") -> "ValidatorFunction":
+        return ValidatorFunction(lambda value: self(value) or other(value))
 
 
 class ValidationBindChecker(BindChecker):
@@ -40,14 +52,17 @@ class ValidationBindChecker(BindChecker):
         # try/except to allow fallback to base_type if VF call fails
         try:
             result = ann(arg)
+            if not result:
+                error = ann.error
         except Exception as e:
             result = False
+            error = e
 
         if not result:
             if ann.base_type is not None and not isinstance(arg, ann.base_type):
-                raise InvalidType(f"{arg=} is not {ann.base_type=}")
+                raise InvalidType(f"{arg=} is not {ann.base_type=}: {error}")
             elif ann.base_type is None:
-                raise ValidationError(f"{arg=} failed validation for {ann=}")
+                raise ValidationError(f"{arg=} failed validation for {ann=}: {error}")
 
 
 class _Validator:
@@ -102,13 +117,13 @@ class _Validator:
             )
 
 
-def validator(func: Callable = None, *, base: Optional[type] = None):
+def validator(func: Callable = None, *, base: Optional[type] = None, error: str = None):
     """Decorator to create custom validator functions for use in validated annotations."""
     if func is None:
         # This means the decorator was used with parentheses, like @validator(base=int)
-        return wraps(func)(partial(validator, base=base))
+        return partial(validator, base=base, error=error)
     else:
-        return wraps(func)(ValidatorFunction(func, base))
+        return ValidatorFunction(func, base, error)
 
 
 def validate(func):
