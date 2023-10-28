@@ -49,12 +49,18 @@ class GenericBinding:
             )
 
 
+@dataclass
+class BindCheckerConfig:
+    strict: bool = True
+    implied_lambdas: bool = False
+
+
 class BindChecker:
     """Checks if a value can bind to a type annotation given some already bound states."""
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[dict] = None):
         self.Gbinds = None
-        self.config = config or {"strict": True}
+        self.config = config or BindCheckerConfig()
 
     def new_bindings(self, generics):
         self.Gbinds = {G: GenericBinding() for G in generics}
@@ -168,7 +174,12 @@ class BindChecker:
             raise ValidationError(f"{arg=} failed to bind to {ann=}")
         else:
             if len(ann.__args__):
-                if hasattr(arg, "__annotations__") and arg.__name__ != "<lambda>":
+                if arg.__name__ == "<lambda>" and not self.config.implied_lambdas:
+                    raise ValidationError(
+                        f"lambda {arg=} cannot have the required annotations, use a def"
+                    )
+
+                if hasattr(arg, "__annotations__"):
                     argsann = arg.__annotations__.get("arg")
                     retann = arg.__annotations__.get("return")
 
@@ -178,7 +189,3 @@ class BindChecker:
                     if argsann is not None:
                         for arg in ann.__args__[0].__args__:
                             self.check(arg, argsann())
-                elif self.config["strict"]:
-                    raise ValidationError(
-                        f"lambda {arg=} cannot have the required annotations, use a def"
-                    )

@@ -39,16 +39,26 @@ python lilvali/demo/dw # reqires dataclass_wizard
 ```bash
 LILVALI_DEBUG="False" python -m unittest discover -s lilvali/tests 
 ```
-
+```py
+#### Coverage
+Name                           Stmts   Miss  Cover
+--------------------------------------------------
+lilvali/__init__.py                2      0   100%
+lilvali/binding.py               113      6    95%
+lilvali/errors.py                  6      0   100%
+lilvali/validate.py               72      3    96%
+tests/test_tiny_validate.py      144      7    95%
+tests/test_validate_types.py      78      0   100%
+--------------------------------------------------
+TOTAL                            415     16    96%
+```
 
 ## TODO
-- maybe: 
-  - cache validated args with their bindings?
-  - recursive validation
-  - register custom validators at runtime 
-- support typing: 
-  - [ ] TypeAlias
-  - [ ] NewType
-  - [ ] Literal
-  - [ ] Any
-- [ ] JsonWizard support
+- [x] Generic/TypeVar support
+- [x] partial support for typing module
+### maybe
+  - [x] cache validated args with their bindings
+    - already done, but this may not be necessary for *this* project.
+  - [/] recursive validation
+    - [x] dict k/v validation
+    - [ ] dataclass/JsonWizard support

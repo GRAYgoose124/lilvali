@@ -7,10 +7,11 @@ from typing import (
     Any,
     Callable,
     Optional,
+    Union,
 )
 
 from .errors import BindingError, ValidationError, InvalidType
-from .binding import BindChecker
+from .binding import BindChecker, BindCheckerConfig
 
 
 log = logging.getLogger(__name__)
@@ -134,7 +135,9 @@ def validator(func: Callable = None, *, base: Optional[type] = None, **config):
         return ValidatorFunction(func, base, config)
 
 
-def validate(func: Callable = None, *, config=None):
+def validate(
+    func: Callable = None, *, config: Optional[Union[BindCheckerConfig, dict]] = None
+):
     """Decorator to strictly validate function arguments and return values against their annotations.
 
     Can optionally take a config dict to change the behavior of the validator.
@@ -149,6 +152,9 @@ def validate(func: Callable = None, *, config=None):
         return b * a
     ```
     """
+
+    if isinstance(config, dict):
+        config = BindCheckerConfig(**config)
 
     if func is None or not callable(func):
         return partial(validate, config=config)

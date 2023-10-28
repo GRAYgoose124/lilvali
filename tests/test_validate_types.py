@@ -86,7 +86,7 @@ class TestValidateTypes(unittest.TestCase):
         with self.assertRaises(ValidationError):
             callable_func("Not a function")
 
-        @validate(config={"strict": False})
+        @validate(config={"implied_lambdas": True})
         def callable_func2(a: Callable[[int], str]) -> str:
             return a(5)
 

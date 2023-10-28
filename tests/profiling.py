@@ -1,8 +1,17 @@
+import random
+import unittest
 from cProfile import Profile
 from pstats import SortKey, Stats
-import random
 
 from lilvali import validate, validator, ValidationError
+
+
+def prof_tests_main():
+    # Discover and run tests
+    loader = unittest.TestLoader()
+    suite = loader.discover(start_dir='path_to_your_tests_directory')  # Adjust the path as needed
+    runner = unittest.TextTestRunner()
+    runner.run(suite)
 
 
 def prof_main():
