@@ -23,11 +23,11 @@ class ValidatorFunction(Callable):
         self,
         fn: Callable[..., bool],
         base_type: Optional[type] = None,
-        error: str = "",
+        config: Optional[dict] = None,
     ):
         self.fn = fn
         self.base_type = base_type
-        self.error = error
+        self.config = config or {"strict": False, "error": ""}
 
         self.__call__ = wraps(fn)(self)
         self.name = fn.__name__
@@ -43,8 +43,8 @@ class ValidatorFunction(Callable):
 
 
 class ValidationBindChecker(BindChecker):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, config=None):
+        super().__init__(config)
         self.check.register(self.vf_check)
 
     def vf_check(self, ann: ValidatorFunction, arg: Any, arg_types=None):
@@ -53,7 +53,7 @@ class ValidationBindChecker(BindChecker):
         try:
             result = ann(arg)
             if not result:
-                error = ann.error
+                error = ann.config["error"]
         except Exception as e:
             result = False
             error = e
@@ -68,10 +68,10 @@ class ValidationBindChecker(BindChecker):
 class _Validator:
     """Callable wrapper for validating function arguments and return values."""
 
-    def __init__(self, func):
+    def __init__(self, func, config=None):
         self.func = func
         self.argspec, self.generics = inspect.getfullargspec(func), func.__type_params__
-        self.bind_checker = ValidationBindChecker()
+        self.bind_checker = ValidationBindChecker(config=config)
 
     def __call__(self, *args, **kwargs):
         # Refresh the BindChecker with new bindings on func call.
@@ -117,21 +117,46 @@ class _Validator:
             )
 
 
-def validator(func: Callable = None, *, base: Optional[type] = None, error: str = None):
-    """Decorator to create custom validator functions for use in validated annotations."""
+def validator(func: Callable = None, *, base: Optional[type] = None, **config):
+    """Decorator to create custom validator functions for use in validated annotations.
+
+    Can optionally take a base type to check against if the validator function fails.
+
+    ```python
+    @validator(base=int)
+    def has_c_or_int(arg):
+        return True if "c" in arg else False
+    ```
+    """
     if func is None or not callable(func):
-        # This means the decorator was used with parentheses, like @validator(base=int)
-        return partial(validator, base=base, error=error)
+        return partial(validator, base=base, config=config)
     else:
-        return ValidatorFunction(func, base, error)
+        return ValidatorFunction(func, base, config)
 
 
-def validate(func):
-    """Decorator to strictly validate function arguments and return values against their annotations."""
-    validated_func = _Validator(func)
+def validate(func: Callable = None, *, config=None):
+    """Decorator to strictly validate function arguments and return values against their annotations.
 
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        return validated_func(*args, **kwargs)
+    Can optionally take a config dict to change the behavior of the validator.
 
-    return wrapper
+    ```python
+    @validate
+    def func(a: int, b: str) -> str:
+        return b * a
+
+    @validate(config={"strict": False})
+    def func(a: int, b: str) -> str:
+        return b * a
+    ```
+    """
+
+    if func is None or not callable(func):
+        return partial(validate, config=config)
+    else:
+        validated_func = _Validator(func, config=config)
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            return validated_func(*args, **kwargs)
+
+        return wrapper

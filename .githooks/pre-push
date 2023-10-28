@@ -1,11 +1,5 @@
 #!/bin/bash
 
-# Run the test suite
-if ! (bash tests/test.sh) then
-  echo "Tests failed. Push aborted, ensure \`lilvali\` can be found in your PATH."
-  exit 1
-fi
-
 if ! lilvali; then
   echo "lilvali failed. Push aborted."
   exit 1
@@ -15,3 +9,10 @@ if ! python demo/basic >/dev/null; then
   echo "Demo failed. Push aborted."
   exit 1
 fi
+
+# Run the test suite
+if ! (bash tests/test.sh) then
+  echo "Tests failed. Push aborted."
+  exit 1
+fi
+

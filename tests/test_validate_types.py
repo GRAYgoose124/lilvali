@@ -1,7 +1,7 @@
 import logging
 import os
 import unittest
-from typing import Optional, Literal, TypedDict, Union, Any, Callable, Type
+from typing import Optional, Literal, TypedDict, Union, Any, Callable
 
 from lilvali.validate import validate, validator, ValidationError
 
@@ -23,6 +23,7 @@ class TestValidateTypes(unittest.TestCase):
             return a
 
         self.assertEqual(literal_func("Yes"), "Yes")
+        self.assertEqual(literal_func("No"), "No")
         with self.assertRaises(ValidationError):
             literal_func("Maybe")
 
@@ -47,6 +48,18 @@ class TestValidateTypes(unittest.TestCase):
         self.assertEqual(union_func(5), "5")
         self.assertEqual(union_func("Hello"), "Hello")
         self.assertEqual(union_func(5.5), "5.5")
+        with self.assertRaises(ValidationError):
+            union_func([])
+
+        @validate
+        def union_func2(a: str | int | float) -> str:
+            return str(a)
+
+        self.assertEqual(union_func2(5), "5")
+        self.assertEqual(union_func2("Hello"), "Hello")
+        self.assertEqual(union_func2(5.5), "5.5")
+        with self.assertRaises(ValidationError):
+            union_func2([])
 
     def test_any(self):
         @validate
@@ -62,14 +75,27 @@ class TestValidateTypes(unittest.TestCase):
         def callable_func(a: Callable[[int], str]) -> str:
             return a(5)
 
-        self.assertEqual(callable_func(lambda x: str(x)), "5")
+        def the_callable(x: int) -> str:
+            return str(x)
+
+        self.assertEqual(callable_func(the_callable), "5")
+
+        with self.assertRaises(ValidationError):
+            callable_func(lambda x: str(x))
+
         with self.assertRaises(ValidationError):
             callable_func("Not a function")
 
+        @validate(config={"strict": False})
+        def callable_func2(a: Callable[[int], str]) -> str:
+            return a(5)
+
+        self.assertEqual(callable_func2(lambda x: str(x)), "5")
+
     def test_type(self):
         @validate
-        def type_func(a: Type[int]) -> bool:
-            return issubclass(a, int)
+        def type_func(a: type) -> bool:
+            return isinstance(a, type)
 
         self.assertTrue(type_func(int))
         with self.assertRaises(ValidationError):

@@ -1,17 +1,14 @@
 from dataclasses import dataclass, field
-import inspect
-import logging
-from functools import partial, singledispatchmethod, wraps
-from itertools import chain
-from types import GenericAlias, UnionType
+from functools import singledispatchmethod
+import types
+import typing
 from typing import (
     Any,
     Callable,
     Dict,
     Optional,
     TypeVar,
-    _SpecialGenericAlias,
-    _UnionGenericAlias,
+    TypedDict,
 )
 
 from .errors import BindingError, InvalidType, ValidationError
@@ -55,8 +52,9 @@ class GenericBinding:
 class BindChecker:
     """Checks if a value can bind to a type annotation given some already bound states."""
 
-    def __init__(self):
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
         self.Gbinds = None
+        self.config = config or {"strict": True}
 
     def new_bindings(self, generics):
         self.Gbinds = {G: GenericBinding() for G in generics}
@@ -84,19 +82,23 @@ class BindChecker:
     @check.register
     def _(
         self,
-        ann: int | float | str | bool | bytes | type(None) | type,
+        ann: int | float | str | bool | bytes | type(None) | type | typing._AnyMeta,
         arg: Any,
         arg_types=None,
     ):
         if ann is None:
             return
+
+        if type(ann) == typing._AnyMeta:
+            return
+
         if not isinstance(arg, ann):
             raise InvalidType(f"{arg=} is not {ann=}")
 
     @check.register
     def _(
         self,
-        ann: GenericAlias | _SpecialGenericAlias,
+        ann: types.GenericAlias | typing._GenericAlias | typing._SpecialGenericAlias,
         arg: Any,
         arg_types=None,
     ):
@@ -129,7 +131,9 @@ class BindChecker:
                 self.check(arg_types[1], v)
 
     @check.register
-    def _(self, ann: UnionType | _UnionGenericAlias, arg: Any, arg_types=None):
+    def _(
+        self, ann: types.UnionType | typing._UnionGenericAlias, arg: Any, arg_types=None
+    ):
         """Handle union types"""
         for a in ann.__args__:
             try:
@@ -139,3 +143,42 @@ class BindChecker:
             except ValidationError:
                 pass
         raise ValidationError(f"{arg=} failed to bind to {ann=}")
+
+    @check.register
+    def _(self, ann: typing._TypedDictMeta, arg: Any, arg_types=None):
+        """Handle TypedDicts"""
+        if not isinstance(arg, dict):
+            raise ValidationError(f"{arg=} failed for dict annotation: {type(ann)}")
+        else:
+            arg_types = arg_types or ann.__annotations__
+
+            for k, v in arg.items():
+                self.check(arg_types[k], v)
+
+    @check.register
+    def _(self, ann: typing._LiteralGenericAlias, arg: Any, arg_types=None):
+        """Handle Literal types"""
+        if arg not in ann.__args__:
+            raise ValidationError(f"{arg=} failed to bind to {ann=}")
+
+    @check.register
+    def _(self, ann: typing._CallableGenericAlias, arg: Any, arg_types=None):
+        """Handle Callable types"""
+        if not callable(arg):
+            raise ValidationError(f"{arg=} failed to bind to {ann=}")
+        else:
+            if len(ann.__args__):
+                if hasattr(arg, "__annotations__") and arg.__name__ != "<lambda>":
+                    argsann = arg.__annotations__.get("arg")
+                    retann = arg.__annotations__.get("return")
+
+                    if retann is not None:
+                        self.check(retann, ann.__args__[1]())
+
+                    if argsann is not None:
+                        for arg in ann.__args__[0].__args__:
+                            self.check(arg, argsann())
+                elif self.config["strict"]:
+                    raise ValidationError(
+                        f"lambda {arg=} cannot have the required annotations, use a def"
+                    )
