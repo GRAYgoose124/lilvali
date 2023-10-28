@@ -6,17 +6,6 @@ from lilvali.validate import validate, validator, ValidationError
 
 
 class TestValidationFunctions(unittest.TestCase):
-    # setup
-    def setUp(self) -> None:
-        if os.getenv("LILVALI_DEBUG", "False") == "True":
-            logging.basicConfig(
-                level=logging.DEBUG, format="%(levelname)s: %(message)s"
-            )
-            logging.getLogger("validate").addHandler(
-                logging.FileHandler("lilvali_unittest_debug.log")
-            )
-        return super().setUp()
-
     def test_mymod(self):
         @validate
         def mymod[T](a: T, b: T):
@@ -186,14 +175,26 @@ class TestValidationFunctions(unittest.TestCase):
         is_positive = validator(lambda arg: arg > 0)
 
         @validate
-        def multi_validator_func(a: is_even & is_positive):
+        def and_multi_validator_func(a: is_even & is_positive):
             return a
 
-        self.assertEqual(multi_validator_func(4), 4)
+        self.assertEqual(and_multi_validator_func(4), 4)
         with self.assertRaises(ValidationError):
-            multi_validator_func(3)
+            and_multi_validator_func(3)
+            and_multi_validator_func(-4)
+
+        @validate
+        def or_multi_validator_func(a: is_even | is_positive):
+            return a
+        
+        self.assertEqual(or_multi_validator_func(4), 4)
+        self.assertEqual(or_multi_validator_func(3), 3)
+        self.assertEqual(or_multi_validator_func(-4), -4)
         with self.assertRaises(ValidationError):
-            multi_validator_func(-4)
+            or_multi_validator_func("Hello")
+            or_multi_validator_func(-3)
+
+
 
     def test_custom_error_message(self):
         is_even = validator(lambda arg: arg % 2 == 0, error="Not an even number!")

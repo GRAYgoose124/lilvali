@@ -15,4 +15,3 @@ if ! (bash tests/test.sh) then
   echo "Tests failed. Push aborted."
   exit 1
 fi
-

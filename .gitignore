@@ -2,3 +2,4 @@
 *.egg-info/
 lilvali_unittest_debug.log
 lilvali_profiling.prof
+.coverage

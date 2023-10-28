@@ -104,18 +104,6 @@ class _Validator:
 
             # return the results if nothing has gone wrong
             return result
-        else:
-            # get all bad binds based on checked false indices
-            bad_binds = dict(
-                filter(
-                    lambda x: not checked[x[0]],
-                    self.bind_checker.Gbinds.items(),
-                )
-            )
-
-            raise ValidationError(
-                f"{self.func.__name__} failed to validate:\n{bad_binds}"
-            )
 
 
 def validator(func: Callable = None, *, base: Optional[type] = None, **config):
