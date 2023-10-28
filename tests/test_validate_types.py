@@ -62,13 +62,23 @@ class TestValidateTypes(unittest.TestCase):
             union_func2([])
 
     def test_any(self):
-        @validate
+        @validate(config={"strict": False})
         def any_func(a: Any) -> str:
             return str(a)
 
         self.assertEqual(any_func(5), "5")
         self.assertEqual(any_func("Hello"), "Hello")
         self.assertEqual(any_func([1, 2, 3]), "[1, 2, 3]")
+
+        @validate
+        def any_func2(a: Any) -> str:
+            return str(a)
+
+        with self.assertRaises(ValidationError):
+            any_func2(5)
+
+        any_func2.checking_off()
+        self.assertEqual(any_func2(5), "5")
 
     def test_callable(self):
         @validate

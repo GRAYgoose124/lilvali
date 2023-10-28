@@ -53,6 +53,8 @@ class GenericBinding:
 class BindCheckerConfig:
     strict: bool = True
     implied_lambdas: bool = False
+    ret_validation: bool = True
+    disabled: bool = False
 
 
 class BindChecker:
@@ -66,6 +68,7 @@ class BindChecker:
         self.Gbinds = {G: GenericBinding() for G in generics}
 
     def register_validator(self, ty, handler: Callable[[type, Any], None]):
+        """Register a handler for a type annotation."""
         self.check.register(ty)(handler)
 
     @property
@@ -73,20 +76,7 @@ class BindChecker:
         return [val.can_bind_generic for val in self.Gbinds.values()]
 
     @singledispatchmethod
-    def check(self, ann: Any, arg: Any, arg_types=None):
-        raise ValidationError(f"Type {type(ann)} for `{arg}: {ann=}` is not handled.")
-
-    @check.register
-    def _(self, ann: TypeVar, arg: Any, arg_types=None):
-        if len(ann.__constraints__) and type(arg) not in ann.__constraints__:
-            raise ValidationError(
-                f"{arg=} is not valid for {ann=} with constraints {ann.__constraints__}"
-            )
-        else:
-            self.Gbinds[ann].try_bind_new_arg(arg)
-
-    @check.register
-    def _(
+    def check(
         self,
         ann: int | float | str | bool | bytes | type(None) | type | typing._AnyMeta,
         arg: Any,
@@ -96,10 +86,15 @@ class BindChecker:
             return
 
         if type(ann) == typing._AnyMeta:
-            return
+            if self.config.strict:
+                raise ValidationError(
+                    f"Type {type(ann)} for `{arg}: {ann=}` must be validated, it cannot be left un-annotated! Disable strict validation to allow this."
+                )
+            else:
+                return
 
         if not isinstance(arg, ann):
-            raise InvalidType(f"{arg=} is not {ann=}")
+            raise InvalidType(f"{ann=} can not validate {arg=}")
 
     @check.register
     def _(
@@ -116,6 +111,15 @@ class BindChecker:
         # self.check(ann.__origin__, arg)
 
     @check.register
+    def _(self, ann: TypeVar, arg: Any, arg_types=None):
+        if len(ann.__constraints__) and type(arg) not in ann.__constraints__:
+            raise ValidationError(
+                f"{arg=} is not valid for {ann=} with constraints {ann.__constraints__}"
+            )
+        else:
+            self.Gbinds[ann].try_bind_new_arg(arg)
+
+    @check.register
     def _(self, ann: list | tuple, arg: Any):
         """Handle generic sequences"""
         if len(ann) == 1:
@@ -127,10 +131,6 @@ class BindChecker:
 
     @check.register
     def _(self, ann: dict, arg: Any, arg_types=None):
-        # TODO: recursive check dicts
-        if not isinstance(arg, dict):
-            raise ValidationError(f"{arg=} failed for dict annotation: {type(ann)}")
-
         if arg_types is not None:
             for k, v in arg.items():
                 self.check(arg_types[0], k)
@@ -153,13 +153,10 @@ class BindChecker:
     @check.register
     def _(self, ann: typing._TypedDictMeta, arg: Any, arg_types=None):
         """Handle TypedDicts"""
-        if not isinstance(arg, dict):
-            raise ValidationError(f"{arg=} failed for dict annotation: {type(ann)}")
-        else:
-            arg_types = arg_types or ann.__annotations__
+        arg_types = arg_types or ann.__annotations__
 
-            for k, v in arg.items():
-                self.check(arg_types[k], v)
+        for k, v in arg.items():
+            self.check(arg_types[k], v)
 
     @check.register
     def _(self, ann: typing._LiteralGenericAlias, arg: Any, arg_types=None):
@@ -180,12 +177,16 @@ class BindChecker:
                     )
 
                 if hasattr(arg, "__annotations__"):
-                    argsann = arg.__annotations__.get("arg")
-                    retann = arg.__annotations__.get("return")
+                    ann_args = {
+                        k: v for (k, v) in arg.__annotations__.items() if k != "return"
+                    }
+                    ann_ret = arg.__annotations__.get("return")
 
-                    if retann is not None:
-                        self.check(retann, ann.__args__[1]())
+                    if ann_ret is not None:
+                        # Assuming return type is the last in __args__
+                        self.check(ann_ret, ann.__args__[-1]())
 
-                    if argsann is not None:
-                        for arg in ann.__args__[0].__args__:
-                            self.check(arg, argsann())
+                    if len(ann_args):
+                        for idx, (arg_name, arg_type) in enumerate(ann_args.items()):
+                            expected_type = ann.__args__[idx]
+                            self.check(expected_type, arg_type())

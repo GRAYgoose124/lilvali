@@ -28,7 +28,11 @@ class TestValidationFunctions(unittest.TestCase):
         self.assertEqual(mysum(1, 2), 3.0)
         with self.assertRaises(ValidationError):
             mysum(1, 2.0)
+        with self.assertRaises(ValidationError):
             badmysum(1, 2)
+
+        badmysum.bind_checker.config.ret_validation = False
+        self.assertEqual(badmysum(1, 2), "3")
 
     def test_variadic_func(self):
         @validate
@@ -148,6 +152,10 @@ class TestValidationFunctions(unittest.TestCase):
         with self.assertRaises(ValidationError):
             none_func(None)
 
+        none_func.checking_off()
+
+        self.assertEqual(none_func(None), None)
+
     def test_no_annotations(self):
         @validate
         def no_anno_func(a, b):
@@ -181,6 +189,7 @@ class TestValidationFunctions(unittest.TestCase):
         self.assertEqual(and_multi_validator_func(4), 4)
         with self.assertRaises(ValidationError):
             and_multi_validator_func(3)
+        with self.assertRaises(ValidationError):
             and_multi_validator_func(-4)
 
         @validate
@@ -192,6 +201,7 @@ class TestValidationFunctions(unittest.TestCase):
         self.assertEqual(or_multi_validator_func(-4), -4)
         with self.assertRaises(ValidationError):
             or_multi_validator_func("Hello")
+        with self.assertRaises(ValidationError):
             or_multi_validator_func(-3)
 
 
@@ -206,7 +216,5 @@ class TestValidationFunctions(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, "Not an even number!"):
             custom_error_func(3)
 
-
-
-if __name__ == "__main__":
-    unittest.main()
+        custom_error_func.checking_off()
+        self.assertEqual(custom_error_func(3), 3)

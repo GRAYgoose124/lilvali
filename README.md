@@ -46,19 +46,19 @@ python demo/dw # reqires dataclass_wizard
 Running tests with coverage
 .....................
 ------------------------------------------------------------
-Ran 21 tests in 0.003s
+Ran 21 tests in 0.004s
 
 OK
 Name                           Stmts   Miss  Cover   Missing
 ------------------------------------------------------------
 lilvali/__init__.py                2      0   100%
-lilvali/binding.py               113      6    95%   69, 77, 132, 157, 190-191
+lilvali/binding.py               111      0   100%
 lilvali/errors.py                  6      0   100%
-lilvali/validate.py               70      0   100%
-tests/test_tiny_validate.py      147      7    95%   26, 31, 146, 184, 195, 204, 212
-tests/test_validate_types.py      78      0   100%
+lilvali/validate.py               69      0   100%
+tests/test_tiny_validate.py      154      0   100%
+tests/test_validate_types.py      85      0   100%
 ------------------------------------------------------------
-TOTAL                            416     13    97%
+TOTAL                            427      0   100%
 ```
 
 ## TODO

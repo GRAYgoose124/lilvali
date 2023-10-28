@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lilvali"
+version = "0.1.0"
+description = "Tiny validation library for Python"
+authors = [{name = "Grayson Miller", email = "grayson.miller124@gmail.com"}]
+license = { text = "MIT" }
+classifiers = [
+    "Intended Audience :: Developers",
+    "Topic :: Utilities",
+]
+readme = "README.md"
+requires-python = ">=3.12"
+
+[project.urls]
+homepage = "https://github.com/GRAYgoose124/lilvali"
+
+
+[tool.setuptools.packages]
+find = {}
+
+[project.scripts]
+lilvali = "lilvali.__main__:main"
+
+[project.optional-dependencies]
+dw = ["dataclass_wizard"]
+dev = ["black", "isort", "flake8", "mypy", "coverage"]

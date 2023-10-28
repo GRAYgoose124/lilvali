@@ -46,7 +46,8 @@ class ValidatorFunction(Callable):
 class ValidationBindChecker(BindChecker):
     def __init__(self, config=None):
         super().__init__(config)
-        self.check.register(self.vf_check)
+        # self.check.register(self.vf_check)
+        self.register_validator(ValidatorFunction, self.vf_check)
 
     def vf_check(self, ann: ValidatorFunction, arg: Any, arg_types=None):
         # TODO: Fix this, exceptions r 2 slow, probably.
@@ -75,6 +76,10 @@ class _Validator:
         self.bind_checker = ValidationBindChecker(config=config)
 
     def __call__(self, *args, **kwargs):
+        # if disabled, just call the function being validated
+        if self.bind_checker.config.disabled:
+            return self.func(*args, **kwargs)
+
         # Refresh the BindChecker with new bindings on func call.
         self.bind_checker.new_bindings(self.generics)
 
@@ -100,10 +105,17 @@ class _Validator:
                 )
 
                 # check it
-                self.bind_checker.check(ret_ann, result)
+                if self.bind_checker.config.ret_validation:
+                    self.bind_checker.check(ret_ann, result)
 
             # return the results if nothing has gone wrong
             return result
+
+    def checking_on(self):
+        self.bind_checker.config.disabled = False
+
+    def checking_off(self):
+        self.bind_checker.config.disabled = True
 
 
 def validator(func: Callable = None, *, base: Optional[type] = None, **config):
@@ -147,10 +159,11 @@ def validate(
     if func is None or not callable(func):
         return partial(validate, config=config)
     else:
-        validated_func = _Validator(func, config=config)
+        # validated_func = _Validator(func, config=config)
 
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            return validated_func(*args, **kwargs)
+        # @wraps(func)
+        # def wrapper(*args, **kwargs):
+        #     return validated_func(*args, **kwargs)
 
-        return wrapper
+        # return wrapper
+        return wraps(func)(_Validator(func, config=config))
