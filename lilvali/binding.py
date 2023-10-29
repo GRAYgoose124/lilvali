@@ -2,16 +2,17 @@ from dataclasses import dataclass, field
 from functools import singledispatchmethod
 import types
 import typing
+import logging
 from typing import (
     Any,
     Callable,
-    Dict,
     Optional,
-    TypeVar,
-    TypedDict,
 )
 
 from .errors import BindingError, InvalidType, ValidationError
+
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -111,7 +112,7 @@ class BindChecker:
         # self.check(ann.__origin__, arg)
 
     @check.register
-    def _(self, ann: TypeVar, arg: Any, arg_types=None):
+    def _(self, ann: typing.TypeVar, arg: Any, arg_types=None):
         if len(ann.__constraints__) and type(arg) not in ann.__constraints__:
             raise ValidationError(
                 f"{arg=} is not valid for {ann=} with constraints {ann.__constraints__}"

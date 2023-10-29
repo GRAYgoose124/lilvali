@@ -213,8 +213,10 @@ class TestValidationFunctions(unittest.TestCase):
         def custom_error_func(a: is_even):
             return a
 
+        custom_error_func.checking_off()
+        self.assertEqual(custom_error_func(3), 3)
+
+        custom_error_func.checking_on()
         with self.assertRaisesRegex(ValidationError, "Not an even number!"):
             custom_error_func(3)
 
-        custom_error_func.checking_off()
-        self.assertEqual(custom_error_func(3), 3)
