@@ -59,7 +59,11 @@ class TestValidateTypes(unittest.TestCase):
         self.assertEqual(union_func2("Hello"), "Hello")
         self.assertEqual(union_func2(5.5), "5.5")
         with self.assertRaises(ValidationError):
+            union_func2(set([1]))
+        with self.assertRaises(ValidationError):
             union_func2([])
+        with self.assertRaises(ValidationError):
+            union_func2({})
 
     def test_any(self):
         @validate(config={"strict": False})
@@ -144,3 +148,21 @@ class TestValidateTypes(unittest.TestCase):
         self.assertEqual(dict_func({1: "a"}), "a")
         with self.assertRaises(ValidationError):
             dict_func({1: 2})
+
+    def test_set(self):
+        @validate
+        def set_func(a: set[int]) -> str:
+            return str(a)
+
+        self.assertEqual(set_func({1, 2, 3}), "{1, 2, 3}")
+        with self.assertRaises(ValidationError):
+            set_func({1, "a", 3})
+
+        with self.assertRaises(ValidationError):
+            set_func([1, 2, 3])
+
+        @validate(config={"performance": True})
+        def set_func2(a: set[int]) -> str:
+            return str(a)
+        
+        self.assertEqual(set_func2({1, 2, 3}), "{1, 2, 3}")

@@ -121,6 +121,9 @@ class TestValidationFunctions(unittest.TestCase):
         with self.assertRaises(ValidationError):
             generic_tuple_func3((1, "a"), ("b", "c"))
 
+        with self.assertRaises(ValidationError):
+            generic_tuple_func3([1, "a"], ("b", 2.0))
+
     def test_generic_dict(self):
         @validate
         def generic_dict_func[T, U: (int, float)](a: dict[T, U]) -> dict[T, U]:
@@ -130,6 +133,9 @@ class TestValidationFunctions(unittest.TestCase):
         self.assertEqual(generic_dict_func({"a": 2.0, "b": 4.0}), {"a": 2.0, "b": 4.0})
         with self.assertRaises(ValidationError):
             generic_dict_func({1: 2, "a": "b"})
+
+        with self.assertRaises(ValidationError):
+            generic_dict_func([1, 2, 3])
 
     def test_with_custom_validator(self):
         has_e = validator(lambda arg: True if "e" in arg else False)
