@@ -7,6 +7,7 @@ from typing import (
     Any,
     Callable,
     Optional,
+    Union,
 )
 
 from .errors import BindingError, InvalidType, ValidationError
@@ -51,19 +52,31 @@ class GenericBinding:
 
 
 @dataclass
-class BindCheckerConfig:
+class BindCheckerConfig(dict):
     strict: bool = True
     implied_lambdas: bool = False
     ret_validation: bool = True
     disabled: bool = False
 
+    performance: bool = False
+    no_list_check: bool = False
+    no_tuple_check: bool = False
+    no_dict_check: bool = False
+
+    ignore_generics: bool = False
+
+    def __getitem__(self, __key: Any) -> Any:
+        if __key not in self:
+            return None
+        return super().__getitem__(__key)
+    
 
 class BindChecker:
     """Checks if a value can bind to a type annotation given some already bound states."""
 
-    def __init__(self, config: Optional[dict] = None):
+    def __init__(self, config: dict | BindCheckerConfig):
         self.Gbinds = None
-        self.config = config or BindCheckerConfig()
+        self.config = config
 
     def new_bindings(self, generics):
         self.Gbinds = {G: GenericBinding() for G in generics}
@@ -83,6 +96,9 @@ class BindChecker:
         arg: Any,
         arg_types=None,
     ):
+        """Check if a value can bind to a type annotation."""
+        log.debug(f"Base: {ann=} {arg=} {arg_types=}")
+        
         if ann is None:
             return
 
@@ -104,44 +120,83 @@ class BindChecker:
         arg: Any,
         arg_types=None,
     ):
+        log.debug(f"GenericAlias: {ann=} {arg=} {arg_types=}")
+        
         if hasattr(ann, "__args__") and len(ann.__args__):
+            # TODO: These are really hacky...using {} and []...etc.. :(
             if issubclass(ann.__origin__, dict):
+                log.debug(f"has__args: {ann=} {arg=} {ann.__args__=}")
                 self.check({}, arg, arg_types=ann.__args__)
-
-        # Check the base
-        # self.check(ann.__origin__, arg)
+            elif issubclass(ann.__origin__, list):
+                self.check([*ann.__args__], arg)
+            elif issubclass(ann.__origin__, tuple):
+                self.check(ann.__args__, arg)
 
     @check.register
     def _(self, ann: typing.TypeVar, arg: Any, arg_types=None):
-        if len(ann.__constraints__) and type(arg) not in ann.__constraints__:
-            raise ValidationError(
-                f"{arg=} is not valid for {ann=} with constraints {ann.__constraints__}"
-            )
-        else:
+        """Handle TypeVars"""
+        log.debug(f"TypeVar: {ann=} {arg=} {arg_types=}\n{ann.__constraints__=}, {type(arg)=}, {type(arg) in [c for c in ann.__constraints__]=}")
+
+        if len(ann.__constraints__):
+            constraint_types = [type(c) for c in ann.__constraints__]
+            if type(arg) in constraint_types:
+                # check against constraints
+                self.check(type(arg), arg)
+            elif type(arg) not in ann.__constraints__:
+                raise ValidationError(
+                    f"{arg=} is not valid for {ann=} with constraints {ann.__constraints__}"
+                )
+        
+        if not self.config.ignore_generics:
             self.Gbinds[ann].try_bind_new_arg(arg)
 
     @check.register
-    def _(self, ann: list | tuple, arg: Any):
+    def _(self, ann: list, arg: Any, arg_types=None):
         """Handle generic sequences"""
+        log.debug(f"(Generic) list: {ann=} {arg=} {arg_types=}")
+
+        if not isinstance(arg, list):
+            raise InvalidType(f"{arg=} is not a list")
+
+        if self.config.no_list_check or self.config.performance:
+            return
+
+        # list like list[T] oor list[X] 
         if len(ann) == 1:
             for a in arg:
-                self.check(ann[0], a)
-        elif len(ann) == len(arg):
+                self.check(ann[0], a, arg_types=arg_types)
+
+    @check.register
+    def _(self, ann: tuple, arg: Any, arg_types=None):
+        log.debug(f"(Generic) tuple: {ann=} {arg=} {arg_types=}")
+        # each arg in tuple must bind to each ann in tuple
+
+        if self.config.no_tuple_check or self.config.performance:
+            return
+
+        if len(ann) == len(arg):
             for a, b in zip(ann, arg):
-                self.check(a, b)
+                self.check(a, b, arg_types=arg_types)
 
     @check.register
     def _(self, ann: dict, arg: Any, arg_types=None):
+        log.debug(f"dict: {ann=} {arg=}, {arg_types=}")
+
+        if self.config.no_dict_check or self.config.performance:
+            return
+
         if arg_types is not None:
             for k, v in arg.items():
-                self.check(arg_types[0], k)
-                self.check(arg_types[1], v)
+                self.check(arg_types[0], k, arg_types=arg_types)
+                self.check(arg_types[1], v, arg_types=arg_types)
 
     @check.register
     def _(
         self, ann: types.UnionType | typing._UnionGenericAlias, arg: Any, arg_types=None
     ):
         """Handle union types"""
+        log.debug(f"Union: {ann=} {arg=} {arg_types=}")
+
         for a in ann.__args__:
             try:
                 # TODO: This probably will cause a bug as it could bind and then fail, leaving some bound remnants.
@@ -154,6 +209,8 @@ class BindChecker:
     @check.register
     def _(self, ann: typing._TypedDictMeta, arg: Any, arg_types=None):
         """Handle TypedDicts"""
+        log.debug(f"TypedDictMeta: {ann=} {arg=} {arg_types=}")
+
         arg_types = arg_types or ann.__annotations__
 
         for k, v in arg.items():
@@ -162,12 +219,16 @@ class BindChecker:
     @check.register
     def _(self, ann: typing._LiteralGenericAlias, arg: Any, arg_types=None):
         """Handle Literal types"""
+        log.debug(f"LiteralGenericAlias: {ann=} {arg=} {arg_types=}")
+
         if arg not in ann.__args__:
             raise ValidationError(f"{arg=} failed to bind to {ann=}")
 
     @check.register
     def _(self, ann: typing._CallableGenericAlias, arg: Any, arg_types=None):
         """Handle Callable types"""
+        log.debug(f"CallableGenericAlias: {ann=} {arg=} {arg_types=}")
+
         if not callable(arg):
             raise ValidationError(f"{arg=} failed to bind to {ann=}")
         else:

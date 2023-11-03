@@ -28,7 +28,11 @@ class ValidatorFunction(Callable):
     ):
         self.fn = fn
         self.base_type = base_type
-        self.config = config or {"strict": False, "error": ""}
+
+        default_cfg = BindCheckerConfig()
+        if config is not None:
+            default_cfg.update(config)
+        self.config =  default_cfg
 
         self.__call__ = wraps(fn)(self)
         self.name = fn.__name__
@@ -45,7 +49,7 @@ class ValidatorFunction(Callable):
 
 class ValidationBindChecker(BindChecker):
     def __init__(self, config=None):
-        super().__init__(config)
+        super().__init__(config=config)
         # self.check.register(self.vf_check)
         self.register_validator(ValidatorFunction, self.vf_check)
 
@@ -98,7 +102,7 @@ class _Validator:
             if "return" in self.argspec.annotations:
                 ret_ann = self.argspec.annotations["return"]
                 log.debug(
-                    "annotations=%s result_type=%s return_spec=%s",
+                    "Return: annotations=%s result_type=%s return_spec=%s",
                     self.argspec.annotations,
                     type(result),
                     ret_ann,
@@ -154,7 +158,15 @@ def validate(
     """
 
     if isinstance(config, dict):
-        config = BindCheckerConfig(**config)
+        if not isinstance(config, BindCheckerConfig):
+            config = BindCheckerConfig(**config)
+    elif config is not None and not isinstance(config, BindCheckerConfig):
+        raise TypeError(
+            f"{config=} must be a dict or BindCheckerConfig, not {type(config)}"
+        )
+    else:
+        config = BindCheckerConfig()
+
 
     if func is None or not callable(func):
         return partial(validate, config=config)

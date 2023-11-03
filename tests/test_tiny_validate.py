@@ -2,10 +2,19 @@ import logging
 import os
 import unittest
 
+
 from lilvali.validate import validate, validator, ValidationError
 
 
 class TestValidationFunctions(unittest.TestCase):
+    def setUp(self):
+        # Reconfigure logging
+        if os.environ.get("LILVALI_DEBUG", False) == "True": # pragma: no cover
+            logging.basicConfig(level=logging.DEBUG, format="%(name)s:%(lineno)s %(message)s")
+
+        # Call the superclass setUp, which is good practice
+        super().setUp()
+
     def test_mymod(self):
         @validate
         def mymod[T](a: T, b: T):
@@ -83,6 +92,44 @@ class TestValidationFunctions(unittest.TestCase):
         self.assertEqual(generic_tuple_return(1, 2.0), (1, 2.0))
         with self.assertRaises(ValidationError):
             generic_tuple_return(1, "a")
+
+    def test_generic_tuple(self):
+        @validate
+        def generic_tuple_func[T, U: (int, float)](a: (T, U)) -> (T, U):
+            return a
+
+        self.assertEqual(generic_tuple_func((1, 2)), (1, 2))
+        self.assertEqual(generic_tuple_func(("a", 2.0)), ("a", 2.0))
+        with self.assertRaises(ValidationError):
+            generic_tuple_func((1, "a"))
+
+        @validate
+        def generic_tuple_func2[T, U: (int, float)](a: (int, str), b: (str, float)) -> (T, U):
+            return a, b
+        
+        with self.assertRaises(ValidationError):
+            generic_tuple_func2((1, "a"), ("b", 2.0))
+        with self.assertRaises(ValidationError):
+            generic_tuple_func2((1, "a"), ("b", "c"))
+
+        # now one to that should pass and fail on return 
+        @validate
+        def generic_tuple_func3[T, U: ((int, str), float)](a: (int, str), b: (str, float)) -> (T, U):
+            return b, a
+        
+        self.assertEqual(generic_tuple_func3((1, "a"), ("b", 2.0)), (("b", 2.0), (1, "a")))
+        with self.assertRaises(ValidationError):
+            generic_tuple_func3((1, "a"), ("b", "c"))
+
+    def test_generic_dict(self):
+        @validate
+        def generic_dict_func[T, U: (int, float)](a: dict[T, U]) -> dict[T, U]:
+            return a
+
+        self.assertEqual(generic_dict_func({1: 2, 3: 4}), {1: 2, 3: 4})
+        self.assertEqual(generic_dict_func({"a": 2.0, "b": 4.0}), {"a": 2.0, "b": 4.0})
+        with self.assertRaises(ValidationError):
+            generic_dict_func({1: 2, "a": "b"})
 
     def test_with_custom_validator(self):
         has_e = validator(lambda arg: True if "e" in arg else False)
@@ -169,9 +216,14 @@ class TestValidationFunctions(unittest.TestCase):
             return [item for sublist in a.values() for item in sublist]
 
         self.assertEqual(nested_func({"a": [1, 2], "b": [3, 4]}), [1, 2, 3, 4])
+        self.assertEqual(nested_func({"a": ["1", "2"], "b": ["3", "4"]}), ["1", "2", "3", "4"])
+        # because already joined to one type.
+        with self.assertRaises(ValidationError):
+            self.assertEqual(nested_func({"a": [1, 2], "b": [3, "4"]}), [1, 2, 3, "4"])
+    
         # TODO: nested validation of dict values
-        # with self.assertRaises(ValidationError):
-        #     nested_func({"a": [1, 2], "b": [3, 5.0]})
+        with self.assertRaises(ValidationError):
+            nested_func({"a": [1, 2], "b": [3, 5.0]})
 
         # Some arcane PEP suggests this is possible...
         # @validate
@@ -203,8 +255,6 @@ class TestValidationFunctions(unittest.TestCase):
             or_multi_validator_func("Hello")
         with self.assertRaises(ValidationError):
             or_multi_validator_func(-3)
-
-
 
     def test_custom_error_message(self):
         is_even = validator(lambda arg: arg % 2 == 0, error="Not an even number!")

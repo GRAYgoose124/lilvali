@@ -39,7 +39,7 @@ python demo/dw # reqires dataclass_wizard
 
 ### Testing
 ```bash
-./tests/tests.sh
+LILVALI_DEBUG=True ./tests/tests.sh
 ```
 
 ```bash
