@@ -32,7 +32,7 @@ class ValidatorFunction(Callable):
         default_cfg = BindCheckerConfig()
         if config is not None:
             default_cfg.update(config)
-        self.config =  default_cfg
+        self.config = default_cfg
 
         self.__call__ = wraps(fn)(self)
         self.name = fn.__name__
@@ -53,7 +53,7 @@ class ValidationBindChecker(BindChecker):
         # self.check.register(self.vf_check)
         self.register_validator(ValidatorFunction, self.vf_check)
 
-    def vf_check(self, ann: ValidatorFunction, arg: Any, arg_types=None):
+    def vf_check(self, ann: ValidatorFunction, arg: Any):
         # TODO: Fix this, exceptions r 2 slow, probably.
         # try/except to allow fallback to base_type if VF call fails
         try:
@@ -166,7 +166,6 @@ def validate(
         )
     else:
         config = BindCheckerConfig()
-
 
     if func is None or not callable(func):
         return partial(validate, config=config)
