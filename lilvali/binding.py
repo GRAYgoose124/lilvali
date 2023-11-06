@@ -69,7 +69,7 @@ class BindCheckerConfig(dict):
         if __key not in self:
             return None
         return super().__getitem__(__key)
-    
+
 
 class BindChecker:
     """Checks if a value can bind to a type annotation given some already bound states."""
@@ -97,9 +97,6 @@ class BindChecker:
     ):
         """Check if a value can bind to a type annotation."""
         log.debug(f"Base: {ann=} {arg=}")
-        
-        if ann is None:
-            return
 
         if type(ann) == typing._AnyMeta:
             if self.config.strict:
@@ -119,7 +116,7 @@ class BindChecker:
         arg: Any,
     ):
         log.debug(f"GenericAlias: {ann=} {arg=}")
-        
+
         if hasattr(ann, "__args__") and len(ann.__args__):
             # TODO: These are really hacky...using {} and []...etc.. :(
             if issubclass(ann.__origin__, dict):
@@ -134,7 +131,9 @@ class BindChecker:
     @check.register
     def _(self, ann: typing.TypeVar, arg: Any):
         """Handle TypeVars"""
-        log.debug(f"TypeVar: {ann=} {arg=}\n{ann.__constraints__=}, {type(arg)=}, {type(arg) in [c for c in ann.__constraints__]=}")
+        log.debug(
+            f"TypeVar: {ann=} {arg=}\n{ann.__constraints__=}, {type(arg)=}, {type(arg) in [c for c in ann.__constraints__]=}"
+        )
 
         if len(ann.__constraints__):
             constraint_types = [type(c) for c in ann.__constraints__]
@@ -145,14 +144,14 @@ class BindChecker:
                 raise ValidationError(
                     f"{arg=} is not valid for {ann=} with constraints {ann.__constraints__}"
                 )
-        
+
         if not self.config.ignore_generics:
             self.Gbinds[ann].try_bind_new_arg(arg)
 
     @check.register
     def _(self, ann: list, arg: Any):
         """Handle generic sequences"""
-        log.debug(f"(Generic) list: {ann=} {arg=}")
+        log.debug(f"list: {ann=} {arg=}")
 
         if not isinstance(arg, list):
             raise InvalidType(f"{arg=} is not a list")
@@ -160,7 +159,7 @@ class BindChecker:
         if self.config.no_list_check or self.config.performance:
             return
 
-        # list like list[T] or list[X] 
+        # list like list[T] or list[X]
         if len(ann) == 1:
             for a in arg:
                 self.check(ann[0], a)
@@ -168,7 +167,7 @@ class BindChecker:
     @check.register
     def _(self, ann: set, arg: Any):
         """Handle generic sets"""
-        log.debug(f"(Generic) set: {ann=} {arg=}")
+        log.debug(f"set: {ann=} {arg=}")
 
         if not isinstance(arg, set):
             raise InvalidType(f"{arg=} is not a set")
@@ -176,7 +175,7 @@ class BindChecker:
         if self.config.no_list_check or self.config.performance:
             return
 
-        # set like set[T] or set[X] 
+        # set like set[T] or set[X]
         if len(ann) == 1:
             set_type = next(iter(ann))
             for a in arg:
@@ -184,7 +183,7 @@ class BindChecker:
 
     @check.register
     def _(self, ann: tuple, arg: Any):
-        log.debug(f"(Generic) tuple: {ann=} {arg=}")
+        log.debug(f"tuple: {ann=} {arg=}")
 
         if not isinstance(arg, tuple):
             raise InvalidType(f"{arg=} is not a tuple")
@@ -213,9 +212,7 @@ class BindChecker:
                 self.check(ann["arg_types"][1], v)
 
     @check.register
-    def _(
-        self, ann: types.UnionType | typing._UnionGenericAlias, arg: Any
-    ):
+    def _(self, ann: types.UnionType | typing._UnionGenericAlias, arg: Any):
         """Handle union types"""
         log.debug(f"Union: {ann=} {arg=}")
 
@@ -227,6 +224,29 @@ class BindChecker:
             except ValidationError:
                 pass
         raise ValidationError(f"{arg=} failed to bind to {ann=}")
+
+    @check.register
+    def _(self, ann: typing._UnpackGenericAlias, arg: Any):
+        """Handle unpacked generic types"""
+        log.debug(
+            f"UnpackGenericAlias: {ann=} {arg=}, {ann.__origin__=} {ann.__args__=}"
+        )
+
+        # support for single type like list[int]
+        if len(ann.__args__) == 1:
+            log.debug(
+                f"UnpackGenericAlias: {self.Gbinds} {ann.__args__[0]=} {type(ann.__args__[0])=}, {type(arg)=}"
+            )
+            self.Gbinds[ann.__args__[0]].try_bind_new_arg(arg)
+            log.debug(f"UnpackGenericAlias: {self.Gbinds}")
+
+    @check.register
+    def _(self, ann: typing.TypeVarTuple, arg: Any):
+        """Handle TypeVarTuples"""
+        log.debug(f"TypeVarTuple: {ann=} {arg=}")
+
+        for e in arg:
+            self.Gbinds[ann].try_bind_new_arg(e)
 
     @check.register
     def _(self, ann: typing._TypedDictMeta, arg: Any):

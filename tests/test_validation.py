@@ -45,18 +45,26 @@ class TestValidationFunctions(unittest.TestCase):
 
     def test_variadic_func(self):
         @validate
-        def variadic_func[T, *Ts](a: T, *args: [Ts]) -> T:
-            if isinstance(a, str):
-                return f"{a}".join(args)
-            return sum(
-                args + (a,),
-            )
+        def variadic_func[T, *Us](a: T, *args: *Us) -> (Us, T):
+            if isinstance(args[0], str):
+                return f"{a}".join(args), a
+            return args, a
 
-        self.assertEqual(variadic_func(1, 2, 3, 4), 10)
-        self.assertEqual(variadic_func(1.0, 2.0, 3.0), 6.0)
-        self.assertEqual(variadic_func("a", "b", "c"), "bac")
+        self.assertEqual(variadic_func(1, 2, 3, 4), ((2, 3, 4), 1))
+        self.assertEqual(variadic_func(1.0, 2.0, 3.0), ((2.0, 3.0), 1.0))
+        self.assertEqual(variadic_func("a", "b", "c"), ("bac", "a"))
+        self.assertEqual(variadic_func("a", 1, 2, 3), ((1, 2, 3), "a"))
         with self.assertRaises(ValidationError):
-            variadic_func(1, 2.0)
+            variadic_func(1, 2, 3.0)
+            
+    def test_variadic_arguments(self):
+        @validate(config={"implied_lambdas": True})
+        def func(a: int, *args: int):
+            return a + sum(args)
+
+        self.assertEqual(func(1, 2, 3), 6)
+        with self.assertRaises(ValidationError):
+            func(1, 2, "3")
 
     def test_default_arg_func(self):
         @validate

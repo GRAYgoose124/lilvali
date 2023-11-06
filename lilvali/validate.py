@@ -87,10 +87,16 @@ class _Validator:
         # Refresh the BindChecker with new bindings on func call.
         self.bind_checker.new_bindings(self.generics)
 
-        # check all args and kwargs together.
-        for name, arg in chain(zip(self.argspec.args, args), kwargs.items()):
+        fixed_args = zip(self.argspec.args, args)
+        var_args = (
+            (self.argspec.varargs, arg) for arg in args[len(self.argspec.args) :]
+        )
+        all_args = chain(fixed_args, var_args, kwargs.items())
+
+        for name, arg in all_args:
             ann = self.argspec.annotations.get(name)
-            self.bind_checker.check(ann, arg)
+            if ann is not None:
+                self.bind_checker.check(ann, arg)
 
         # after ensuring all values can bind
         checked = self.bind_checker.checked
@@ -170,11 +176,4 @@ def validate(
     if func is None or not callable(func):
         return partial(validate, config=config)
     else:
-        # validated_func = _Validator(func, config=config)
-
-        # @wraps(func)
-        # def wrapper(*args, **kwargs):
-        #     return validated_func(*args, **kwargs)
-
-        # return wrapper
         return wraps(func)(_Validator(func, config=config))
