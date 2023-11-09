@@ -80,11 +80,12 @@ class _Validator:
         self.bind_checker = ValidationBindChecker(config=config)
 
     def __call__(self, *args, **kwargs):
-        # if disabled, just call the function being validated
+        """Validating wrapper for the bound self.func"""
+        # If disabled, just call the function being validated.
         if self.bind_checker.config.disabled:
             return self.func(*args, **kwargs)
 
-        # Refresh the BindChecker with new bindings on func call.
+        # First refresh the BindChecker with new bindings on func call,
         self.bind_checker.new_bindings(self.generics)
 
         fixed_args = zip(self.argspec.args, args)
@@ -93,18 +94,19 @@ class _Validator:
         )
         all_args = chain(fixed_args, var_args, kwargs.items())
 
+        # then check all args against their type hints.
         for name, arg in all_args:
             ann = self.argspec.annotations.get(name)
             if ann is not None:
                 self.bind_checker.check(ann, arg)
 
-        # after ensuring all values can bind
+        # After ensuring all generic values can bind,
         checked = self.bind_checker.checked
         if all(checked):
-            # call the function being validated
+            # call the function being validated.
             result = self.func(*args, **kwargs)
 
-            # if there is a return annotation
+            # If there is a return annotation
             if "return" in self.argspec.annotations:
                 ret_ann = self.argspec.annotations["return"]
                 log.debug(
@@ -114,17 +116,19 @@ class _Validator:
                     ret_ann,
                 )
 
-                # check it
+                # check it.
                 if self.bind_checker.config.ret_validation:
                     self.bind_checker.check(ret_ann, result)
 
-            # return the results if nothing has gone wrong
+            # Finally, return the results if nothing has gone wrong.
             return result
 
     def checking_on(self):
+        """Turn type validation on."""
         self.bind_checker.config.disabled = False
 
     def checking_off(self):
+        """Turn type validation off."""
         self.bind_checker.config.disabled = True
 
 

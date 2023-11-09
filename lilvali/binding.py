@@ -106,6 +106,10 @@ class BindChecker:
             else:
                 return
 
+        # if newtype we need to check against the base type
+        if hasattr(ann, "__supertype__"):
+            ann = ann.__supertype__
+
         if not isinstance(arg, ann):
             raise InvalidType(f"{ann=} can not validate {arg=}")
 
