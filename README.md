@@ -2,24 +2,37 @@
 
 A small Python 3.12 validation experiment for playing with [PEP 695](https://peps.python.org/pep-0695/). 
 
+> Supports most basic typing constructs including Generics.
+
 ## Install
 ```bash
-cd lilvali
+pip install lilvali
 ```
 
-### Requirements
-Currently optional except for `demo/dw`.
-```bash
-pip install -r requirements.txt
-```
+## Basic Usage
+```python
+from lilvali import validate, validator, ValidationError
 
-### Installing
-```bash
-# For development:
-pip install -e .
 
-# otherwise:
-pip install .
+@validate
+def add[T: (int, float)](x: int, y: T) -> int | float:
+    return x + y
+
+
+def main():
+    print(f"{add(1, 2)=}")
+    print(f"{add(1, 2.0)=}")
+
+    try:
+        print(f"{add(1.0, 2)=}")
+    except ValidationError as e:
+        print(f"{e=}")
+    else:
+        raise RuntimeError("Expected ValidationError")
+
+
+if __name__ == "__main__":
+    main()
 ```
 
 
@@ -29,19 +42,12 @@ After installing:
 # (Does nothing right now.)
 lilvali
 ```
-### Demos
-```bash
-# You may also want to try the demo:
-python demo/basic
 
-python demo/dw # reqires dataclass_wizard
+```python
+from lilvali import validate, validator, ValidationError
 ```
 
-### Testing
-```bash
-LILVALI_DEBUG=True ./tests/tests.sh
-```
-
+## Tests
 ```bash
 Running tests with coverage
 .........................
@@ -61,4 +67,4 @@ tests/test_validate_types.py     124      0   100%
 TOTAL                            574      0   100%
 ```
 
-[TODO](TODO.md)
+[TODO](docs/TODO.md)
