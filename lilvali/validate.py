@@ -49,7 +49,8 @@ class ValidatorFunction(Callable):
                 self.__annotations__["return"] = return_annotation
             else:
                 self.__annotations__["return"] = return_annotation[0]
-                self.config["error"] = return_annotation[1]
+                if return_annotation[1] is not None:
+                    self.config["error"] = return_annotation[1]
 
     def __and__(self, other: "ValidatorFunction"):
         return ValidatorFunction(lambda value: self.fn(value) and other.fn(value))
@@ -82,7 +83,7 @@ class ValidationBindChecker(BindChecker):
                 raise ValidationError(f"{arg=} failed validation for {ann=}: {error}")
 
 
-class _Validator:
+class TypeValidator:
     """Callable wrapper for validating function arguments and return values."""
 
     def __init__(self, func, config=None):
@@ -191,4 +192,4 @@ def validate(
     if func is None or not callable(func):
         return partial(validate, config=config)
     else:
-        return wraps(func)(_Validator(func, config=config))
+        return wraps(func)(TypeValidator(func, config=config))

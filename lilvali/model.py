@@ -3,15 +3,17 @@ from dataclasses import dataclass, fields, field
 from functools import wraps
 
 from lilvali import validate, validator, ValidationError, ValidatorFunction
-from lilvali.validate import _Validator
+from lilvali.validate import TypeValidator
 
 log = logging.getLogger(__name__)
 
 
+# TODO: hack, should be using lilvali.validate not validator.
 class ValidatorMeta(type):
     def __new__(cls, name, bases, dct):
         _cls = dataclass(super().__new__(cls, name, bases, dct))
 
+        # these custom validators should be part of a real _Validator.
         _cls._validators = {}
         _cls._config = {}
         for field in fields(_cls):
