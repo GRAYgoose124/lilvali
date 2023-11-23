@@ -40,6 +40,17 @@ class ValidatorFunction(Callable):
     def __call__(self, value):
         return self.fn(value)
 
+    def set_my_annotations(
+        self, annotations: dict, return_annotation=(bool, str | None)
+    ):
+        self.__annotations__ = annotations
+        if return_annotation is not None:
+            if not isinstance(return_annotation, tuple):
+                self.__annotations__["return"] = return_annotation
+            else:
+                self.__annotations__["return"] = return_annotation[0]
+                self.config["error"] = return_annotation[1]
+
     def __and__(self, other: "ValidatorFunction"):
         return ValidatorFunction(lambda value: self.fn(value) and other.fn(value))
 
