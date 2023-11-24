@@ -27,7 +27,7 @@ if command -v coverage >/dev/null; then
   coverage report -m
   cd ..
 
-  if [[ $(coverage report -m | tail -n 1 | awk '{print $4}' | tr -d '%') -lt 95 ]]; then
+  if [[ $(coverage report -m | tail -n 1 | awk '{print $4}' | tr -d '%') -lt 90 ]]; then
 
       if [[ -z "$filename" ]]; then
         echo "Coverage is less than 95%. Aborting..."

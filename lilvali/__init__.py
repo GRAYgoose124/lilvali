@@ -5,7 +5,7 @@ from .validate import (
     ValidatorFunction,
     TypeValidator,
 )
-from .model import ValidationModel, VM
+from .model import ValidationModel, VM, ValidatorMeta
 
 __all__ = [
     "validate",
@@ -14,5 +14,6 @@ __all__ = [
     "ValidatorFunction",
     "ValidationModel",
     "VM",
+    "ValidatorMeta",
     "ValidationError",
 ]

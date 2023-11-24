@@ -29,13 +29,19 @@ class ValidatorFunction(Callable):
         self.fn = fn
         self.base_type = base_type
 
+        self.__call__ = wraps(fn)(self)
+
         default_cfg = BindCheckerConfig()
+
         if config is not None:
             default_cfg.update(config)
-        self.config = default_cfg
+            if "name" in config:
+                self.name = f"_{config["name"]}"
+                fn.__name__ = self.name
+        else:
+            self.name = fn.__name__
 
-        self.__call__ = wraps(fn)(self)
-        self.name = fn.__name__
+        self.config = default_cfg
 
     def __call__(self, value):
         return self.fn(value)
@@ -89,6 +95,7 @@ class TypeValidator:
     def __init__(self, func, config=None):
         self.func = func
         self.argspec, self.generics = inspect.getfullargspec(func), func.__type_params__
+        #print(f"{func} {self.argspec=} {self.generics=}")
         self.bind_checker = ValidationBindChecker(config=config)
 
     def __call__(self, *args, **kwargs):
@@ -100,6 +107,10 @@ class TypeValidator:
         # First refresh the BindChecker with new bindings on func call,
         self.bind_checker.new_bindings(self.generics)
 
+        if "self" in self.argspec.args:
+            # if the function is a method, bind the first arg to self.
+            args = (self.func, *args)
+
         fixed_args = zip(self.argspec.args, args)
         var_args = (
             (self.argspec.varargs, arg) for arg in args[len(self.argspec.args) :]
@@ -110,6 +121,7 @@ class TypeValidator:
         for name, arg in all_args:
             ann = self.argspec.annotations.get(name)
             if ann is not None:
+                #print(f"{name=} {ann=} {arg=}")
                 self.bind_checker.check(ann, arg)
 
         # After ensuring all generic values can bind,
@@ -130,8 +142,8 @@ class TypeValidator:
 
                 # check it.
                 if self.bind_checker.config.ret_validation:
-                    self.bind_checker.check(ret_ann, result)
-
+                    if ret_ann is not None:
+                        self.bind_checker.check(ret_ann, result)
             # Finally, return the results if nothing has gone wrong.
             return result
 

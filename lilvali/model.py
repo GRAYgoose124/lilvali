@@ -14,24 +14,21 @@ class ValidatorMeta(type):
         _cls = dataclass(super().__new__(cls, name, bases, dct))
 
         # these custom validators should be part of a real _Validator.
-        _cls._validators = {}
-        _cls._config = {}
+        # print(_cls.__name__, _cls.__init__.__annotations__)
+        V = validate(_cls.__init__)
+        _cls.__init__ = V
         for field in fields(_cls):
-            validator = dct.get(field.name)
+            vf = dct.get(f"_{field.name}")
+            # print(dct)
             # set function annotations to be equal to the field's type
-            if isinstance(validator, ValidatorFunction):
-                validator.set_my_annotations({"value": field.type})
-                _cls._validators[field.name] = validator
+            if isinstance(vf, ValidatorFunction):
+                V.bind_checker.register_validator(field.type, vf)
 
         return _cls
 
 
 class ValidationModel(metaclass=ValidatorMeta):
-    def __setattr__(self, name, value):
-        validator = self._validators.get(name)
-        if validator is not None and not validator(value):
-            raise ValidationError(f"Invalid value for {name}: {value}")
-        super().__setattr__(name, value)
+    pass
 
 
 VM = ValidationModel
