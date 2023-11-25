@@ -78,12 +78,17 @@ class BindChecker:
         self.Gbinds = None
         self.config = config
 
+        self.custom_validators = {}
+
     def new_bindings(self, generics):
         self.Gbinds = {G: GenericBinding() for G in generics}
 
     def register_validator(self, ty, handler: Callable[[type, Any], None]):
         """Register a handler for a type annotation."""
         self.check.register(ty)(handler)
+        self.custom_validators.setdefault(ty, []).append(handler)
+
+        log.debug(f"Registered {handler=} for {ty=}")
 
     @property
     def checked(self):
@@ -112,6 +117,11 @@ class BindChecker:
 
         if not isinstance(arg, ann):
             raise InvalidType(f"{ann=} can not validate {arg=}")
+
+        # check custom validators. TODO: make this catch all types >_<
+        if ann in self.custom_validators:
+            for handler in self.custom_validators[ann]:
+                handler(arg)
 
     @check.register
     def _(

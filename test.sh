@@ -25,12 +25,12 @@ if command -v coverage >/dev/null; then
     coverage run -m unittest discover -s $(dirname $0)
   fi
   coverage report -m
-  cd ..
 
   if [[ $(coverage report -m | tail -n 1 | awk '{print $4}' | tr -d '%') -lt 90 ]]; then
 
       if [[ -z "$filename" ]]; then
         echo "Coverage is less than 95%. Aborting..."
+        cd ..
         exit 1
       fi
   fi
@@ -40,6 +40,7 @@ else
 
   if [[ -z "$filename" ]]; then
     echo "Coverage is not installed. Aborting..."
+    cd ..
     exit 1
   fi
 fi

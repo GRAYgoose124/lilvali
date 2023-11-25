@@ -3,12 +3,16 @@ import inspect
 import logging
 from functools import partial, wraps
 from itertools import chain
+import pdb
 from typing import (
     Any,
     Callable,
     Optional,
     Union,
 )
+
+from dataclasses import dataclass, fields
+from functools import wraps
 
 from .errors import BindingError, ValidationError, InvalidType
 from .binding import BindChecker, BindCheckerConfig
@@ -92,14 +96,29 @@ class ValidationBindChecker(BindChecker):
 class TypeValidator:
     """Callable wrapper for validating function arguments and return values."""
 
-    def __init__(self, func, config=None):
+    def __init__(self, func: type | Callable, config=None):
         self.func = func
+        if hasattr(func, "validated_base_cls"):
+            self._cls = func.validated_base_cls
+        else:
+            log.debug("NO CLASS!")
+            self._cls = None
+
+        log.debug(f"init over {f'{self._cls}.' if self._cls is not None else ''}{self.func}")
         self.argspec, self.generics = inspect.getfullargspec(func), func.__type_params__
-        #print(f"{func} {self.argspec=} {self.generics=}")
+        log.debug(f"{func} {self.argspec=} {self.generics=}")
         self.bind_checker = ValidationBindChecker(config=config)
 
     def __call__(self, *args, **kwargs):
         """Validating wrapper for the bound self.func"""
+        log.debug(f"CALLED: {self.func.__class__}.{self.func.__name__} called with args {args=}, {kwargs=} | {self.func.__annotations__}")
+        # if the function is a method, add the class to the args.
+        if "self" in self.argspec.args:
+            if self._cls is not None:
+                # probably init
+                args = (self._cls, *args)
+            log.debug(f"MfS {self.func=} {args}")
+        
         # If disabled, just call the function being validated.
         if self.bind_checker.config.disabled:
             return self.func(*args, **kwargs)
@@ -107,16 +126,12 @@ class TypeValidator:
         # First refresh the BindChecker with new bindings on func call,
         self.bind_checker.new_bindings(self.generics)
 
-        if "self" in self.argspec.args:
-            # if the function is a method, bind the first arg to self.
-            args = (self.func, *args)
-
         fixed_args = zip(self.argspec.args, args)
         var_args = (
             (self.argspec.varargs, arg) for arg in args[len(self.argspec.args) :]
         )
-        all_args = chain(fixed_args, var_args, kwargs.items())
-
+        all_args = list(chain(fixed_args, var_args, kwargs.items()))
+        log.debug(f"{all_args=}")
         # then check all args against their type hints.
         for name, arg in all_args:
             ann = self.argspec.annotations.get(name)
@@ -141,9 +156,8 @@ class TypeValidator:
                 )
 
                 # check it.
-                if self.bind_checker.config.ret_validation:
-                    if ret_ann is not None:
-                        self.bind_checker.check(ret_ann, result)
+                if self.bind_checker.config.ret_validation and ret_ann is not None:
+                    self.bind_checker.check(ret_ann, result)
             # Finally, return the results if nothing has gone wrong.
             return result
 
@@ -190,6 +204,7 @@ def validate(
         return b * a
     ```
     """
+    log.debug(f"{func=} {config=}")
 
     if isinstance(config, dict):
         if not isinstance(config, BindCheckerConfig):
@@ -202,6 +217,45 @@ def validate(
         config = BindCheckerConfig()
 
     if func is None or not callable(func):
+        log.debug(f"partialling {func=}")
         return partial(validate, config=config)
     else:
+        log.debug(f"wrapping {func=}")
         return wraps(func)(TypeValidator(func, config=config))
+
+
+class ValidatorMeta(type):
+    """ Metaclass wrapper to validate dataclasses.
+    
+    Ex.
+
+    ```python
+    class SomeClass(metaclass=ValidatorMeta):
+    x: int
+    y: str = field(default="hello")
+
+    @validator
+    def _x(value) -> bool:
+        return value is not None and value > 0
+
+    @validator
+    def _y(value) -> bool:
+        return value == "hello"
+    ```
+    """
+    def __new__(cls, name, bases, dct):
+        _cls = dataclass(super().__new__(cls, name, bases, dct))
+        _cls.__init__.validated_base_cls = _cls 
+
+        V = validate(_cls.__init__)
+        _cls.__init__ = V
+
+        for field in fields(_cls):
+            vf = dct.get(f"_{field.name}")
+            if "self" in inspect.getfullargspec(vf).args:
+                vf = staticmethod(vf)
+            if isinstance(vf, ValidatorFunction):
+                V.bind_checker.register_validator(field.type, vf)
+            
+
+        return _cls
