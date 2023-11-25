@@ -18,8 +18,9 @@ class SomeClass(metaclass=ValidatorMeta):
     y: str = field(default="hello")
 
     @validator
-    def _x(value) -> bool:
-        return value is not None and value > 0
+    def _x(value):
+        if value is None or value < 0:
+            raise ValidationError
 
     @validator
     def _y(value) -> bool:
@@ -32,12 +33,15 @@ class TestValidateTypes(unittest.TestCase):
         self.assertEqual(SomeClass(1).y, "hello")
         with self.assertRaises(ValidationError):
             SomeClass(-1.3, "hello")
-        # with self.assertRaises(ValidationError):
-        #     SomeClass(1, "herro")
         with self.assertRaises(ValidationError):
             SomeClass(1, None)
         with self.assertRaises(ValidationError):
             SomeClass(1.0, "hello")
+
+        with self.assertRaises(ValidationError):
+            SomeClass(-1, "hello")
+        with self.assertRaises(ValidationError):
+            SomeClass(1, "herro")
 
 
 def main():

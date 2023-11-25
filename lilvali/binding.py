@@ -58,6 +58,8 @@ class BindCheckerConfig(dict):
     ret_validation: bool = True
     disabled: bool = False
 
+    use_custom_validators: bool = True
+
     performance: bool = False
     no_list_check: bool = False
     no_tuple_check: bool = False
@@ -86,13 +88,31 @@ class BindChecker:
     def register_validator(self, ty, handler: Callable[[type, Any], None]):
         """Register a handler for a type annotation."""
         self.check.register(ty)(handler)
-        self.custom_validators.setdefault(ty, []).append(handler)
-
         log.debug(f"Registered {handler=} for {ty=}")
+
+    def register_custom_validator(self, ty, handler: Callable[[type, Any], None]):
+        """Register a handler for a type annotation.
+
+        Could be part of register validator, but there are many catches to custom validation.
+            Should only use on primitive types.
+        """
+        self.custom_validators.setdefault(ty, []).append(handler)
+        log.debug(f"Registered custom {handler=} for {ty=}")
 
     @property
     def checked(self):
         return [val.can_bind_generic for val in self.Gbinds.values()]
+
+    def __check_with_custom_validators(self, ty, value):
+        """Check a value against custom validators."""
+        if not self.config.use_custom_validators:
+            return
+
+        if ty in self.custom_validators:
+            for handler in self.custom_validators[ty]:
+                valid = handler(value)
+                if valid is not None and not valid:
+                    raise ValidationError(f"{value=} failed to bind to {ty=}")
 
     @singledispatchmethod
     def check(
@@ -118,10 +138,7 @@ class BindChecker:
         if not isinstance(arg, ann):
             raise InvalidType(f"{ann=} can not validate {arg=}")
 
-        # check custom validators. TODO: make this catch all types >_<
-        if ann in self.custom_validators:
-            for handler in self.custom_validators[ann]:
-                handler(arg)
+        self.__check_with_custom_validators(ann, arg)
 
     @check.register
     def _(
@@ -237,6 +254,7 @@ class BindChecker:
                 return
             except ValidationError:
                 pass
+
         raise ValidationError(f"{arg=} failed to bind to {ann=}")
 
     @check.register
@@ -259,6 +277,9 @@ class BindChecker:
         """Handle TypeVarTuples"""
         log.debug(f"TypeVarTuple: {ann=} {arg=}")
 
+        if self.config.no_tuple_check or self.config.performance:
+            return
+
         for e in arg:
             self.Gbinds[ann].try_bind_new_arg(e)
 
@@ -266,6 +287,9 @@ class BindChecker:
     def _(self, ann: typing._TypedDictMeta, arg: Any):
         """Handle TypedDicts"""
         log.debug(f"TypedDictMeta: {ann=} {arg=}")
+
+        if self.config.no_dict_check or self.config.performance:
+            return
 
         for k, v in arg.items():
             self.check(ann.__annotations__[k], v)

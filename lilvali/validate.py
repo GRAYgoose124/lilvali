@@ -236,7 +236,8 @@ class ValidatorMeta(type):
 
     @validator
     def _x(value) -> bool:
-        return value is not None and value > 0
+        if value is not None and value > 0:
+            raise ValidationError
 
     @validator
     def _y(value) -> bool:
@@ -252,10 +253,12 @@ class ValidatorMeta(type):
 
         for field in fields(_cls):
             vf = dct.get(f"_{field.name}")
-            if "self" in inspect.getfullargspec(vf).args:
-                vf = staticmethod(vf)
             if isinstance(vf, ValidatorFunction):
-                V.bind_checker.register_validator(field.type, vf)
+                if "self" in inspect.getfullargspec(vf).args:
+                    vf = staticmethod(vf)
+                V.bind_checker.register_custom_validator(field.type, vf)
+
+
             
 
         return _cls
