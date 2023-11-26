@@ -113,7 +113,7 @@ class TypeValidator:
             self._cls = None
 
         log.debug(
-            f"init over {f'{self._cls}.' if self._cls is not None else ''}{self.func}"
+            f"init over {f'{self._cls}.' if self._cls is not None else ''}{self.func}, {func.__type_params__}"
         )
         self.argspec, self.generics = inspect.getfullargspec(func), func.__type_params__
         log.debug(f"{func} {self.argspec=} {self.generics=}")

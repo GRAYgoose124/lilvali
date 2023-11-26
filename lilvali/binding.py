@@ -69,6 +69,14 @@ class BindCheckerConfig(dict):
         return super().__getitem__(__key)
 
 
+class GenericBindings(dict):
+    def __init__(self, generics):
+        super().__init__({G: GenericBinding() for G in generics})
+
+    def try_bind_new_arg(self, ann, arg):
+        self.setdefault(ann, GenericBinding()).try_bind_new_arg(arg)
+
+
 class BindChecker:
     """Checks if a value can bind to a type annotation given some already bound states."""
 
@@ -79,7 +87,7 @@ class BindChecker:
         self.custom_validators = {}
 
     def new_bindings(self, generics):
-        self.Gbinds = {G: GenericBinding() for G in generics}
+        self.Gbinds = GenericBindings(generics)
 
     def register_validator(self, ty, handler: Callable[[type, Any], None]):
         """Register a handler for a type annotation."""
@@ -173,7 +181,7 @@ class BindChecker:
                 )
 
         if not self.config.ignore_generics:
-            self.Gbinds[ann].try_bind_new_arg(arg)
+            self.Gbinds.try_bind_new_arg(ann, arg)
 
     @check.register
     def _(self, ann: list, arg: Any):
@@ -265,7 +273,7 @@ class BindChecker:
             log.debug(
                 f"UnpackGenericAlias: {self.Gbinds} {ann.__args__[0]=} {type(ann.__args__[0])=}, {type(arg)=}"
             )
-            self.Gbinds[ann.__args__[0]].try_bind_new_arg(arg)
+            self.Gbinds.try_bind_new_arg(ann.__args__[0], arg)
             log.debug(f"UnpackGenericAlias: {self.Gbinds}")
 
     @check.register
@@ -277,7 +285,7 @@ class BindChecker:
             return
 
         for e in arg:
-            self.Gbinds[ann].try_bind_new_arg(e)
+            self.Gbinds.try_bind_new_arg(ann, e)
 
     @check.register
     def _(self, ann: typing._TypedDictMeta, arg: Any):

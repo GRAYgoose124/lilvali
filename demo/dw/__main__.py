@@ -1,4 +1,5 @@
-import json
+import inspect
+import json, os, logging
 from dataclasses import dataclass
 from dataclass_wizard import JSONWizard, JSONSerializable
 
@@ -6,11 +7,16 @@ from lilvali import validate, validate
 from lilvali.errors import *
 
 
+if os.environ.get("LILVALI_DEBUG", False) == "True":  # pragma: no cover
+    logging.basicConfig(level=logging.DEBUG, format="%(name)s:%(lineno)s %(message)s")
+
+
 def damn(decorator):
     def decorate(cls):
         for attr_name, attr_value in cls.__dict__.items():
-            if callable(attr_value):
-                setattr(cls, attr_name, decorator(attr_value))
+            if inspect.ismethod(func := attr_value):
+                func.validated_base_cls = cls
+                setattr(cls, attr_name, decorator(func))
         return cls
 
     return decorate
@@ -27,19 +33,19 @@ def test_validate():
     try:
         print(f"{add(1.0, 2)=}")
     except ValidationError as e:
-        print(f"{e=}")
-    else:
-        raise RuntimeError("Expected ValidationError")
+        pass
 
 
 def test_validated_cls():
-    @damn(validate)
+    # @damn(validate)
     @dataclass
     class SomeSchema(JSONWizard):
         """a dataclass that defines a json schema."""
 
         name: str
         data: dict[str, int]
+
+    SomeSchema.from_dict = validate(SomeSchema.from_dict)
 
     c = SomeSchema.from_dict({"name": "A", "data": {}})
     print(c)

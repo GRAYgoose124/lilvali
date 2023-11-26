@@ -7,17 +7,11 @@ from lilvali.validate import validate, validator
 from lilvali.errors import *
 
 
+if os.environ.get("LILVALI_DEBUG", False) == "True":  # pragma: no cover
+    logging.basicConfig(level=logging.DEBUG, format="%(name)s:%(lineno)s %(message)s")
+
+
 class TestValidationFunctions(unittest.TestCase):
-    def setUp(self):
-        # Reconfigure logging
-        if os.environ.get("LILVALI_DEBUG", False) == "True":  # pragma: no cover
-            logging.basicConfig(
-                level=logging.DEBUG, format="%(name)s:%(lineno)s %(message)s"
-            )
-
-        # Call the superclass setUp, which is good practice
-        super().setUp()
-
     def test_mymod(self):
         @validate
         def mymod[T](a: T, b: T):
