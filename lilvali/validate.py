@@ -239,12 +239,8 @@ def validate(
             vf = getattr(cls, f"_{arg}", None)
             log.debug(f"VF {arg=} {vf=}")
 
-            # Check if it's a ValidatorFunction instance and if it requires 'self'
             if isinstance(vf, ValidatorFunction):
-                if "self" in inspect.getfullargspec(vf).args:
-                    setattr(cls, f"_{arg}", staticmethod(vf))
                 field_type = type_annotations.get(arg, None)
-                log.debug(f"FF {arg=} {field_type=} {vf=}")
                 if field_type:
                     V.bind_checker.register_custom_validator(field_type, vf)
 

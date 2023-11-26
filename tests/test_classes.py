@@ -42,7 +42,8 @@ class NotADC:
 
     @validator
     def _y(value) -> bool:
-        return value == "hello"
+        if value != "hello":
+            raise ValidationError
 
 
 class TestValidateTypes(unittest.TestCase):

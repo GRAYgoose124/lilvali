@@ -1,12 +1,14 @@
 import inspect
 import json, os, logging
 from dataclasses import dataclass
-from dataclass_wizard import JSONWizard, JSONSerializable
+from dataclass_wizard import JSONWizard
+import dataclass_wizard
 
-from lilvali import validate, validate
+from lilvali import validate, validator
 from lilvali.errors import *
 
 
+log = logging.getLogger(__name__)
 if os.environ.get("LILVALI_DEBUG", False) == "True":  # pragma: no cover
     logging.basicConfig(level=logging.DEBUG, format="%(name)s:%(lineno)s %(message)s")
 
@@ -14,7 +16,8 @@ if os.environ.get("LILVALI_DEBUG", False) == "True":  # pragma: no cover
 def damn(decorator):
     def decorate(cls):
         for attr_name, attr_value in cls.__dict__.items():
-            if inspect.ismethod(func := attr_value):
+            if not attr_name.startswith("_") and callable(func := attr_value):
+                log.debug(f"decorating {attr_name} with {decorator}")
                 func.validated_base_cls = cls
                 setattr(cls, attr_name, decorator(func))
         return cls
@@ -37,7 +40,9 @@ def test_validate():
 
 
 def test_validated_cls():
-    # @damn(validate)
+    total_validate = lambda cls: damn(validate)(validate(cls))
+
+    @total_validate
     @dataclass
     class SomeSchema(JSONWizard):
         """a dataclass that defines a json schema."""
@@ -45,10 +50,24 @@ def test_validated_cls():
         name: str
         data: dict[str, int]
 
-    SomeSchema.from_dict = validate(SomeSchema.from_dict)
+        @classmethod
+        def from_dict(cls, value: dict):
+            return super().from_dict(value)
 
     c = SomeSchema.from_dict({"name": "A", "data": {}})
     print(c)
+
+    try:
+        SomeSchema.from_dict("not_a_dict")
+    except ValidationError:
+        print("GOTCHA!")
+    except dataclass_wizard.errors.MissingFields:
+        print("DARN IT WE LOST 'ER!")
+
+    try:
+        SomeSchema(1, False)
+    except ValidationError:
+        print("GOOD STUFF!")
 
 
 def main():
