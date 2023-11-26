@@ -26,13 +26,18 @@ if [[ $current_version != $latest_version ]]; then
   echo "Version has changed. Pushing to PyPI..."
   echo "$latest_version -> $current_version"
 
-  if  [[ $BW_SESSION == "" ]]; then
-    echo "Logging into Bitwarden CLI..."
-    OUT=bw login
-    eval $(echo $OUT | grep -oPm1 "(?<=export BW_SESSION=)[^\"]+") 
+  # If only we could capture this right: $(bw unlock --raw) for some reason stdin doesn't behave from git hooks
+
+  if ! bw login --check; then
+      echo "Please login to Bitwarden using `bw login`"
+      exit 1
   fi
-  bw login --check
-  
+
+  if [[ -z "$BW_SESSION" ]]; then    
+    echo "Please start a Bitwarden session using `bw unlock`"
+    exit 1
+  fi
+
   # Extracting the username and password from the JSON output
   PYPI_USERNAME=$(bw list items --search PYPI | jq -r '.[] | select(.name == "pypi.org") | .login.username')
   PYPI_PASSWORD=$(bw list items --search PYPI | jq -r '.[] | select(.name == "pypi.org") | .login.password')

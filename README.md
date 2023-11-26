@@ -3,7 +3,7 @@
 A small Python 3.12 validation experiment for playing with [PEP 695](https://peps.python.org/pep-0695/). 
 
 > Supports most basic typing constructs including Generics. 
-> Also supports dataclasses through a special metaclass.
+> Also supports dataclasses and classes with annotated `__init__` methods.
 
 ## Install
 ```bash
@@ -77,8 +77,11 @@ class NotADC:
         return value == "hello"
 ```
 
+See the demo folder as well. 
+
 ## Tests
 ```bash
+$ ./test.sh
 Running tests with coverage
 .........................
 ----------------------------------------------------------------------
