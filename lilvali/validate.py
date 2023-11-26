@@ -38,7 +38,7 @@ class ValidatorFunction(Callable):
         if config is not None:
             default_cfg.update(config)
             if "name" in config:
-                self.name = f"_{config["name"]}"
+                self.name = f"_{config['name']}"
                 fn.__name__ = self.name
         else:
             self.name = fn.__name__
@@ -64,7 +64,17 @@ class ValidatorFunction(Callable):
         return ValidatorFunction(lambda value: self.fn(value) and other.fn(value))
 
     def __or__(self, other: "ValidatorFunction") -> "ValidatorFunction":
-        return ValidatorFunction(lambda value: self.fn(value) or other.fn(value))
+        def wrapper(value):
+            try:
+                result = self.fn(value)
+            except ValidationError as e:
+                result = False
+
+            result |= other.fn(value)
+
+            return result
+
+        return ValidatorFunction(wrapper)
 
 
 class ValidationBindChecker(BindChecker):
@@ -102,21 +112,25 @@ class TypeValidator:
             log.debug("NO CLASS!")
             self._cls = None
 
-        log.debug(f"init over {f'{self._cls}.' if self._cls is not None else ''}{self.func}")
+        log.debug(
+            f"init over {f'{self._cls}.' if self._cls is not None else ''}{self.func}"
+        )
         self.argspec, self.generics = inspect.getfullargspec(func), func.__type_params__
         log.debug(f"{func} {self.argspec=} {self.generics=}")
         self.bind_checker = ValidationBindChecker(config=config)
 
     def __call__(self, *args, **kwargs):
         """Validating wrapper for the bound self.func"""
-        log.debug(f"CALLED: {self.func.__class__}.{self.func.__name__} called with args {args=}, {kwargs=} | {self.func.__annotations__}")
+        log.debug(
+            f"CALLED: {self.func.__class__}.{self.func.__name__} called with args {args=}, {kwargs=} | {self.func.__annotations__}"
+        )
         # if the function is a method, add the class to the args.
         if "self" in self.argspec.args:
             if self._cls is not None:
                 # probably init
                 args = (self._cls, *args)
             log.debug(f"MfS {self.func=} {args}")
-        
+
         # If disabled, just call the function being validated.
         if self.bind_checker.config.disabled:
             return self.func(*args, **kwargs)
@@ -134,7 +148,7 @@ class TypeValidator:
         for name, arg in all_args:
             ann = self.argspec.annotations.get(name)
             if ann is not None:
-                #print(f"{name=} {ann=} {arg=}")
+                # print(f"{name=} {ann=} {arg=}")
                 self.bind_checker.check(ann, arg)
 
         # After ensuring all generic values can bind,
@@ -186,7 +200,9 @@ def validator(func: Callable = None, *, base: Optional[type] = None, **config):
 
 
 def validate(
-    target: Callable | type = None, *, config: Optional[Union[BindCheckerConfig, dict]] = None
+    target: Callable | type = None,
+    *,
+    config: Optional[Union[BindCheckerConfig, dict]] = None,
 ):
     """Decorator to strictly validate function arguments and return values against their annotations.
 
@@ -211,11 +227,11 @@ def validate(
         cls.__init__.validated_base_cls = cls
 
         # Wrap __init__ for validation
-        V =  _validate_function(cls.__init__, config)
+        V = _validate_function(cls.__init__, config)
         cls.__init__ = V
 
         # Inspect the __init__ method to find the fields
-        type_annotations = getattr(cls.__init__, '__annotations__', {})
+        type_annotations = getattr(cls.__init__, "__annotations__", {})
 
         # Skip 'self' and iterate over the other arguments
         for arg in type_annotations:
@@ -258,4 +274,3 @@ def validate(
         return decorator
     else:
         return decorator(target)
-
