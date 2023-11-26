@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lilvali"
-version = "0.1.2"
+version = "0.1.4"
 description = "Tiny validation library for Python"
 authors = [{name = "Grayson Miller", email = "grayson.miller124@gmail.com"}]
 license = { text = "MIT" }

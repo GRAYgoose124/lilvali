@@ -185,9 +185,6 @@ def validator(func: Callable = None, *, base: Optional[type] = None, **config):
         return ValidatorFunction(func, base, config)
 
 
-
-
-
 def validate(
     target: Callable | type = None, *, config: Optional[Union[BindCheckerConfig, dict]] = None
 ):
@@ -206,27 +203,36 @@ def validate(
     ```
     """
     log.debug(f"{target=} {config=}")
+
     def _validate_function(func, config):
         return wraps(func)(TypeValidator(func, config=config))
 
-
     def _validate_class(cls, config):
-        _cls = dataclass(cls)
-        _cls.__init__.validated_base_cls = _cls
+        cls.__init__.validated_base_cls = cls
 
         # Wrap __init__ for validation
-        V =  _validate_function(_cls.__init__, config)
-        _cls.__init__ = V
+        V =  _validate_function(cls.__init__, config)
+        cls.__init__ = V
 
-        # Register custom validators
-        for field in fields(_cls):
-            vf = getattr(_cls, f"_{field.name}", None)
+        # Inspect the __init__ method to find the fields
+        type_annotations = getattr(cls.__init__, '__annotations__', {})
+
+        # Skip 'self' and iterate over the other arguments
+        for arg in type_annotations:
+            # Attempt to retrieve a validator function
+            vf = getattr(cls, f"_{arg}", None)
+            log.debug(f"VF {arg=} {vf=}")
+
+            # Check if it's a ValidatorFunction instance and if it requires 'self'
             if isinstance(vf, ValidatorFunction):
                 if "self" in inspect.getfullargspec(vf).args:
-                    vf = staticmethod(vf)
-                V.bind_checker.register_custom_validator(field.type, vf)
+                    setattr(cls, f"_{arg}", staticmethod(vf))
+                field_type = type_annotations.get(arg, None)
+                log.debug(f"FF {arg=} {field_type=} {vf=}")
+                if field_type:
+                    V.bind_checker.register_custom_validator(field_type, vf)
 
-        return _cls
+        return cls
 
     if isinstance(config, dict):
         if not isinstance(config, BindCheckerConfig):
@@ -240,8 +246,10 @@ def validate(
 
     def decorator(func_or_cls):
         if inspect.isclass(func_or_cls):
+            log.debug(f"Class {func_or_cls=}")
             return _validate_class(func_or_cls, config)
         elif callable(func_or_cls):
+            log.debug(f"Function {func_or_cls=}")
             return _validate_function(func_or_cls, config)
         else:
             raise TypeError("Invalid target for validation")

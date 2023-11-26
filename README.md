@@ -45,9 +45,27 @@ if __name__ == "__main__":
 ```
 
 ```python
-class SomeClass(metaclass=ValidatorMeta):
+@validate
+@dataclass
+class SomeClass:
     x: int
     y: str = field(default="hello")
+
+    @validator
+    def _x(value):
+        if value is None or value < 0:
+            raise ValidationError
+
+    @validator
+    def _y(value) -> bool:
+        return value == "hello"
+
+
+@validate
+class NotADC:
+    def __init__(self, x: int, y: str):
+        self.x = x
+        self.y = y
 
     @validator
     def _x(value):
