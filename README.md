@@ -13,16 +13,12 @@ pip install lilvali
 ## Usage
 
 ```python
-from lilvali import validate, validate
+from lilvali import validate, validator
 from lilvali.errors import *
 ```
 
 ## Simple examples
 ```python
-from lilvali import validate, validate
-from lilvali.errors import *
-
-
 @validate
 def add[T: (int, float)](x: int, y: T) -> int | float:
     return x + y
