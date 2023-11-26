@@ -2,16 +2,25 @@
 
 A small Python 3.12 validation experiment for playing with [PEP 695](https://peps.python.org/pep-0695/). 
 
-> Supports most basic typing constructs including Generics.
+> Supports most basic typing constructs including Generics. 
+> Also supports dataclasses through a special metaclass.
 
 ## Install
 ```bash
 pip install lilvali
 ```
 
-## Basic Usage
+## Usage
+
 ```python
-from lilvali import validate, validator, ValidationError
+from lilvali import validate, validate
+from lilvali.errors import *
+```
+
+## Simple examples
+```python
+from lilvali import validate, validate
+from lilvali.errors import *
 
 
 @validate
@@ -35,16 +44,19 @@ if __name__ == "__main__":
     main()
 ```
 
-
-## Usage
-After installing:
-```bash
-# (Does nothing right now.)
-lilvali
-```
-
 ```python
-from lilvali import validate, validator, ValidationError
+class SomeClass(metaclass=ValidatorMeta):
+    x: int
+    y: str = field(default="hello")
+
+    @validator
+    def _x(value):
+        if value is None or value < 0:
+            raise ValidationError
+
+    @validator
+    def _y(value) -> bool:
+        return value == "hello"
 ```
 
 ## Tests

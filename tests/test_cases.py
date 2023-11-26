@@ -1,8 +1,8 @@
-import logging
-import os
-import unittest
+import logging, os, unittest
 from typing import List, Union, Optional, Callable, Any, TypedDict, Literal
-from lilvali import validate, validator, ValidationError
+
+from lilvali import validate
+from lilvali.errors import *
 
 
 class TestValidateTypes(unittest.TestCase):

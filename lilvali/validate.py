@@ -1,9 +1,7 @@
 #!/usr/bin/env python
-import inspect
-import logging
+import inspect, logging
 from functools import partial, wraps
 from itertools import chain
-import pdb
 from typing import (
     Any,
     Callable,
@@ -14,7 +12,7 @@ from typing import (
 from dataclasses import dataclass, fields
 from functools import wraps
 
-from .errors import BindingError, ValidationError, InvalidType
+from .errors import *
 from .binding import BindChecker, BindCheckerConfig
 
 
@@ -187,8 +185,11 @@ def validator(func: Callable = None, *, base: Optional[type] = None, **config):
         return ValidatorFunction(func, base, config)
 
 
+
+
+
 def validate(
-    func: Callable = None, *, config: Optional[Union[BindCheckerConfig, dict]] = None
+    target: Callable | type = None, *, config: Optional[Union[BindCheckerConfig, dict]] = None
 ):
     """Decorator to strictly validate function arguments and return values against their annotations.
 
@@ -204,7 +205,28 @@ def validate(
         return b * a
     ```
     """
-    log.debug(f"{func=} {config=}")
+    log.debug(f"{target=} {config=}")
+    def _validate_function(func, config):
+        return wraps(func)(TypeValidator(func, config=config))
+
+
+    def _validate_class(cls, config):
+        _cls = dataclass(cls)
+        _cls.__init__.validated_base_cls = _cls
+
+        # Wrap __init__ for validation
+        V =  _validate_function(_cls.__init__, config)
+        _cls.__init__ = V
+
+        # Register custom validators
+        for field in fields(_cls):
+            vf = getattr(_cls, f"_{field.name}", None)
+            if isinstance(vf, ValidatorFunction):
+                if "self" in inspect.getfullargspec(vf).args:
+                    vf = staticmethod(vf)
+                V.bind_checker.register_custom_validator(field.type, vf)
+
+        return _cls
 
     if isinstance(config, dict):
         if not isinstance(config, BindCheckerConfig):
@@ -216,49 +238,16 @@ def validate(
     else:
         config = BindCheckerConfig()
 
-    if func is None or not callable(func):
-        log.debug(f"partialling {func=}")
-        return partial(validate, config=config)
+    def decorator(func_or_cls):
+        if inspect.isclass(func_or_cls):
+            return _validate_class(func_or_cls, config)
+        elif callable(func_or_cls):
+            return _validate_function(func_or_cls, config)
+        else:
+            raise TypeError("Invalid target for validation")
+
+    if target is None:
+        return decorator
     else:
-        log.debug(f"wrapping {func=}")
-        return wraps(func)(TypeValidator(func, config=config))
+        return decorator(target)
 
-
-class ValidatorMeta(type):
-    """ Metaclass wrapper to validate dataclasses.
-    
-    Ex.
-
-    ```python
-    class SomeClass(metaclass=ValidatorMeta):
-    x: int
-    y: str = field(default="hello")
-
-    @validator
-    def _x(value) -> bool:
-        if value is not None and value > 0:
-            raise ValidationError
-
-    @validator
-    def _y(value) -> bool:
-        return value == "hello"
-    ```
-    """
-    def __new__(cls, name, bases, dct):
-        _cls = dataclass(super().__new__(cls, name, bases, dct))
-        _cls.__init__.validated_base_cls = _cls 
-
-        V = validate(_cls.__init__)
-        _cls.__init__ = V
-
-        for field in fields(_cls):
-            vf = dct.get(f"_{field.name}")
-            if isinstance(vf, ValidatorFunction):
-                if "self" in inspect.getfullargspec(vf).args:
-                    vf = staticmethod(vf)
-                V.bind_checker.register_custom_validator(field.type, vf)
-
-
-            
-
-        return _cls

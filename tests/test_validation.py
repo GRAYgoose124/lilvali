@@ -3,14 +3,17 @@ import os
 import unittest
 
 
-from lilvali.validate import validate, validator, ValidationError
+from lilvali.validate import validate, validator
+from lilvali.errors import *
 
 
 class TestValidationFunctions(unittest.TestCase):
     def setUp(self):
         # Reconfigure logging
-        if os.environ.get("LILVALI_DEBUG", False) == "True": # pragma: no cover
-            logging.basicConfig(level=logging.DEBUG, format="%(name)s:%(lineno)s %(message)s")
+        if os.environ.get("LILVALI_DEBUG", False) == "True":  # pragma: no cover
+            logging.basicConfig(
+                level=logging.DEBUG, format="%(name)s:%(lineno)s %(message)s"
+            )
 
         # Call the superclass setUp, which is good practice
         super().setUp()
@@ -56,7 +59,7 @@ class TestValidationFunctions(unittest.TestCase):
         self.assertEqual(variadic_func("a", 1, 2, 3), ((1, 2, 3), "a"))
         with self.assertRaises(ValidationError):
             variadic_func(1, 2, 3.0)
-            
+
     def test_variadic_arguments(self):
         @validate(config={"implied_lambdas": True})
         def func(a: int, *args: int):
@@ -112,20 +115,26 @@ class TestValidationFunctions(unittest.TestCase):
             generic_tuple_func((1, "a"))
 
         @validate
-        def generic_tuple_func2[T, U: (int, float)](a: (int, str), b: (str, float)) -> (T, U):
+        def generic_tuple_func2[
+            T, U: (int, float)
+        ](a: (int, str), b: (str, float)) -> (T, U):
             return a, b
-        
+
         with self.assertRaises(ValidationError):
             generic_tuple_func2((1, "a"), ("b", 2.0))
         with self.assertRaises(ValidationError):
             generic_tuple_func2((1, "a"), ("b", "c"))
 
-        # now one to that should pass and fail on return 
+        # now one to that should pass and fail on return
         @validate
-        def generic_tuple_func3[T, U: ((int, str), float)](a: (int, str), b: (str, float)) -> (T, U):
+        def generic_tuple_func3[
+            T, U: ((int, str), float)
+        ](a: (int, str), b: (str, float)) -> (T, U):
             return b, a
-        
-        self.assertEqual(generic_tuple_func3((1, "a"), ("b", 2.0)), (("b", 2.0), (1, "a")))
+
+        self.assertEqual(
+            generic_tuple_func3((1, "a"), ("b", 2.0)), (("b", 2.0), (1, "a"))
+        )
         with self.assertRaises(ValidationError):
             generic_tuple_func3((1, "a"), ("b", "c"))
 
@@ -203,7 +212,7 @@ class TestValidationFunctions(unittest.TestCase):
         self.assertEqual(func_a({"a": 1, "b": 2}), "a,1;b,2")
         self.assertEqual(func_b({"a": 1, "b": 2}), 3)
         with self.assertRaises(ValidationError):
-            func_b({'a': 1, 'b': 'c'})
+            func_b({"a": 1, "b": "c"})
 
     def test_none_values(self):
         @validate
@@ -230,11 +239,13 @@ class TestValidationFunctions(unittest.TestCase):
             return [item for sublist in a.values() for item in sublist]
 
         self.assertEqual(nested_func({"a": [1, 2], "b": [3, 4]}), [1, 2, 3, 4])
-        self.assertEqual(nested_func({"a": ["1", "2"], "b": ["3", "4"]}), ["1", "2", "3", "4"])
+        self.assertEqual(
+            nested_func({"a": ["1", "2"], "b": ["3", "4"]}), ["1", "2", "3", "4"]
+        )
         # because already joined to one type.
         with self.assertRaises(ValidationError):
             self.assertEqual(nested_func({"a": [1, 2], "b": [3, "4"]}), [1, 2, 3, "4"])
-    
+
         # TODO: nested validation of dict values
         with self.assertRaises(ValidationError):
             nested_func({"a": [1, 2], "b": [3, 5.0]})
@@ -261,7 +272,7 @@ class TestValidationFunctions(unittest.TestCase):
         @validate
         def or_multi_validator_func(a: is_even | is_positive):
             return a
-        
+
         self.assertEqual(or_multi_validator_func(4), 4)
         self.assertEqual(or_multi_validator_func(3), 3)
         self.assertEqual(or_multi_validator_func(-4), -4)
@@ -283,4 +294,3 @@ class TestValidationFunctions(unittest.TestCase):
         custom_error_func.checking_on()
         with self.assertRaisesRegex(ValidationError, "Not an even number!"):
             custom_error_func(3)
-

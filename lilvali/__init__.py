@@ -1,17 +1,15 @@
 from .validate import (
     validate,
     validator,
-    ValidationError,
     ValidatorFunction,
     TypeValidator,
-    ValidatorMeta,
 )
+from . import errors
 
 __all__ = [
     "validate",
     "validator",
     "TypeValidator",
     "ValidatorFunction",
-    "ValidatorMeta",
-    "ValidationError",
+    "errors",
 ]

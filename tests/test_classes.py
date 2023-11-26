@@ -1,8 +1,8 @@
-import logging, os, inspect, unittest
-from dataclasses import dataclass, fields, field
-from functools import wraps
+import logging, os, unittest
+from dataclasses import field
 
-from lilvali import validator, ValidationError, ValidatorMeta
+from lilvali import validator, validate
+from lilvali.errors import *
 
 
 log = logging.getLogger(__name__)
@@ -13,7 +13,8 @@ if os.environ.get("LILVALI_DEBUG", False) == "True":  # pragma: no cover
     )
 
 
-class SomeClass(metaclass=ValidatorMeta):
+@validate
+class SomeClass:
     x: int
     y: str = field(default="hello")
 
@@ -37,7 +38,6 @@ class TestValidateTypes(unittest.TestCase):
             SomeClass(1, None)
         with self.assertRaises(ValidationError):
             SomeClass(1.0, "hello")
-
         with self.assertRaises(ValidationError):
             SomeClass(-1, "hello")
         with self.assertRaises(ValidationError):

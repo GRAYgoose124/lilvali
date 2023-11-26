@@ -1,4 +1,5 @@
-from lilvali import validate, validator, ValidationError
+from lilvali import validate, validate
+from lilvali.errors import *
 
 
 @validate

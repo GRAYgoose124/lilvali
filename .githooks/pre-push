@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# requires: bw (bitwarden-cli), jq, and newsboat
+
 if ! lilvali; then
   echo "lilvali failed. Push aborted."
   exit 1
@@ -15,3 +17,29 @@ if ! (bash test.sh) then
   echo "Tests failed. Push aborted."
   exit 1
 fi
+
+
+current_version=$(grep 'version = ' pyproject.toml | awk -F '"' '{print $2}')
+latest_version=$(curl -s https://pypi.org/pypi/lilvali/json | jq -r '.info.version')
+
+if [[ $current_version != $latest_version ]]; then
+  echo "Version has changed. Pushing to PyPI..."
+  echo "$current_version -> $latest_version"
+
+  if  [[ $BW_SESSION == "" ]]; then
+    echo "Logging into Bitwarden CLI..."
+    OUT=bw login
+    eval $(echo $OUT | grep -oPm1 "(?<=export BW_SESSION=)[^\"]+") 
+  fi
+  bw login --check
+  
+  # Extracting the username and password from the JSON output
+  PYPI_USERNAME=$(bw list items --search PYPI | jq -r '.[] | select(.name == "pypi.org") | .login.username')
+  PYPI_PASSWORD=$(bw list items --search PYPI | jq -r '.[] | select(.name == "pypi.org") | .login.password')
+
+  python3 -m build && twine upload -r pypi dist/* -u$PYPI_USERNAME -p$PYPI_PASSWORD
+else
+  echo "Up to date. :)"
+fi
+
+

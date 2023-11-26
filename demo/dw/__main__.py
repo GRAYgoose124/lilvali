@@ -1,8 +1,9 @@
-import json 
+import json
 from dataclasses import dataclass
 from dataclass_wizard import JSONWizard, JSONSerializable
 
-from lilvali import validate, validator, ValidationError
+from lilvali import validate, validate
+from lilvali.errors import *
 
 
 def damn(decorator):
@@ -11,6 +12,7 @@ def damn(decorator):
             if callable(attr_value):
                 setattr(cls, attr_name, decorator(attr_value))
         return cls
+
     return decorate
 
 
@@ -34,10 +36,10 @@ def test_validated_cls():
     @damn(validate)
     @dataclass
     class SomeSchema(JSONWizard):
-        """ a dataclass that defines a json schema. """
+        """a dataclass that defines a json schema."""
+
         name: str
         data: dict[str, int]
-
 
     c = SomeSchema.from_dict({"name": "A", "data": {}})
     print(c)
@@ -46,6 +48,7 @@ def test_validated_cls():
 def main():
     test_validate()
     test_validated_cls()
+
 
 if __name__ == "__main__":
     main()

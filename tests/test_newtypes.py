@@ -1,9 +1,9 @@
 """ unittest to check validation of NewTypes, which should just be the same as the basic types they are based on."""
-import logging
-import os
-import unittest
+import logging, os, unittest
 from typing import NewType
-from lilvali import validate, validator, ValidationError
+
+from lilvali import validate
+from lilvali.errors import *
 
 
 class TestValidateNewTypes(unittest.TestCase):

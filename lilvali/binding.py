@@ -1,13 +1,9 @@
 from dataclasses import dataclass, field
 from functools import singledispatchmethod
-import types
-import typing
-import logging
+import types, typing, logging
 from typing import (
     Any,
     Callable,
-    Optional,
-    Union,
 )
 
 from .errors import BindingError, InvalidType, ValidationError
