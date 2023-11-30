@@ -68,12 +68,8 @@ def validate(
         # Inspect the __init__ method to find the fields
         type_annotations = getattr(cls.__init__, "__annotations__", {})
 
-        # Skip 'self' and iterate over the other arguments
         for arg in type_annotations:
-            # Attempt to retrieve a validator function
             vf = getattr(cls, f"_{arg}", None)
-            log.debug(f"VF {arg=} {vf=}")
-
             if isinstance(vf, ValidatorFunction):
                 field_type = type_annotations.get(arg, None)
                 if field_type:

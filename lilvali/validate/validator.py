@@ -22,24 +22,16 @@ class TypeValidator:
             log.debug("NO CLASS!")
             self._cls = None
 
-        log.debug(
-            f"init over {f'{self._cls}.' if self._cls is not None else ''}{self.func}, {func.__type_params__}"
-        )
         self.argspec, self.generics = inspect.getfullargspec(func), func.__type_params__
-        log.debug(f"{func} {self.argspec=} {self.generics=}")
+
         self.bind_checker = ValidationBindChecker(config=config)
 
     def __call__(self, *args, **kwargs):
         """Validating wrapper for the bound self.func"""
-        log.debug(
-            f"CALLED: {self.func.__class__}.{self.func.__name__} called with args {args=}, {kwargs=} | {self.func.__annotations__}"
-        )
         # if the function is a method, add the class to the args.
         if "self" in self.argspec.args:
             if self._cls is not None:
-                # probably init
                 args = (self._cls, *args)
-            log.debug(f"MfS {self.func=} {args}")
 
         # If disabled, just call the function being validated.
         if self.bind_checker.config.disabled:
@@ -53,7 +45,7 @@ class TypeValidator:
             (self.argspec.varargs, arg) for arg in args[len(self.argspec.args) :]
         )
         all_args = list(chain(fixed_args, var_args, kwargs.items()))
-        log.debug(f"{all_args=}")
+
         # then check all args against their type hints.
         for name, arg in all_args:
             ann = self.argspec.annotations.get(name)
